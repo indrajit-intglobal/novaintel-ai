@@ -1,0 +1,28 @@
+from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey, String, JSON
+from sqlalchemy.orm import relationship
+from datetime import datetime
+from db.database import Base
+
+class Proposal(Base):
+    __tablename__ = "proposals"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    title = Column(String, nullable=False, default="Proposal")
+    
+    # Sections stored as JSON array of {id, title, content}
+    sections = Column(JSON, nullable=True)
+    
+    # Template type
+    template_type = Column(String, default="full")  # executive, full, one-page
+    
+    # Export metadata
+    last_exported_at = Column(DateTime, nullable=True)
+    export_format = Column(String, nullable=True)  # pdf, docx
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    project = relationship("Project", back_populates="proposals")
+
