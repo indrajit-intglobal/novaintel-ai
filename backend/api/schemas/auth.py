@@ -18,11 +18,25 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 class UserResponse(BaseModel):
-    id: int
+    id: str  # Supabase uses UUID strings
     email: str
     full_name: str
-    role: str
+    is_active: bool = True
+    email_verified: bool = False
+    message: str = ""
+    role: str = "presales_manager"  # Optional, for backward compatibility
     
     class Config:
         from_attributes = True
+
+class UserUpdate(BaseModel):
+    full_name: str | None = None
+    role: str | None = None
+
+class UserSettingsUpdate(BaseModel):
+    default_industry: str | None = None
+    proposal_tone: str | None = None
+    ai_response_style: str | None = None
+    secure_mode: bool | None = None
+    auto_save_insights: bool | None = None
 

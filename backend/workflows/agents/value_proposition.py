@@ -2,9 +2,9 @@
 Value Proposition Agent - Creates value propositions mapped to challenges.
 """
 from typing import Dict, Any, List
-from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from utils.config import settings
+from utils.llm_factory import get_llm
 
 class ValuePropositionAgent:
     """Agent that generates value propositions."""
@@ -15,15 +15,11 @@ class ValuePropositionAgent:
     
     def _initialize(self):
         """Initialize the LLM."""
-        if settings.OPENAI_API_KEY:
-            try:
-                self.llm = ChatOpenAI(
-                    model="gpt-4-turbo-preview",
-                    temperature=0.2,
-                    api_key=settings.OPENAI_API_KEY
-                )
-            except Exception as e:
-                print(f"Error initializing Value Proposition Agent: {e}")
+        try:
+            self.llm = get_llm(provider=settings.LLM_PROVIDER, temperature=0.2)
+            print(f"✓ Value Proposition Agent initialized with {settings.LLM_PROVIDER}")
+        except Exception as e:
+            print(f"Error initializing Value Proposition Agent: {e}")
     
     def generate_value_propositions(
         self,

@@ -2,9 +2,9 @@
 Proposal Builder Agent - Drafts complete proposal sections.
 """
 from typing import Dict, Any, List
-from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from utils.config import settings
+from utils.llm_factory import get_llm
 
 class ProposalBuilderAgent:
     """Agent that builds proposal drafts."""
@@ -15,15 +15,11 @@ class ProposalBuilderAgent:
     
     def _initialize(self):
         """Initialize the LLM."""
-        if settings.OPENAI_API_KEY:
-            try:
-                self.llm = ChatOpenAI(
-                    model="gpt-4-turbo-preview",
-                    temperature=0.2,
-                    api_key=settings.OPENAI_API_KEY
-                )
-            except Exception as e:
-                print(f"Error initializing Proposal Builder Agent: {e}")
+        try:
+            self.llm = get_llm(provider=settings.LLM_PROVIDER, temperature=0.2)
+            print(f"✓ Proposal Builder Agent initialized with {settings.LLM_PROVIDER}")
+        except Exception as e:
+            print(f"Error initializing Proposal Builder Agent: {e}")
     
     def build_proposal(
         self,

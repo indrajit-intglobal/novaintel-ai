@@ -6,8 +6,130 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
+import { toast } from "sonner";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Loader2 } from "lucide-react";
 
 export default function Settings() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
+  const [profileData, setProfileData] = useState({
+    full_name: "",
+    email: "",
+    role: "",
+  });
+  
+  const [settingsData, setSettingsData] = useState({
+    default_industry: "BFSI",
+    proposal_tone: "professional",
+    ai_response_style: "balanced",
+    secure_mode: false,
+    auto_save_insights: true,
+  });
+
+  // Load user profile
+  const { data: currentUser, isLoading: isLoadingUser } = useQuery({
+    queryKey: ["currentUser"],
+    queryFn: () => apiClient.getCurrentUser(),
+    enabled: !!user,
+  });
+
+  // Load user settings
+  const { data: userSettings, isLoading: isLoadingSettings } = useQuery({
+    queryKey: ["userSettings"],
+    queryFn: () => apiClient.getUserSettings(),
+    enabled: !!user,
+  });
+
+  // Initialize form data when user data loads
+  useEffect(() => {
+    if (currentUser) {
+      setProfileData({
+        full_name: currentUser.full_name || "",
+        email: currentUser.email || "",
+        role: (currentUser as any).role || "presales_manager",
+      });
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (userSettings) {
+      setSettingsData({
+        default_industry: userSettings.default_industry || "BFSI",
+        proposal_tone: userSettings.proposal_tone || "professional",
+        ai_response_style: userSettings.ai_response_style || "balanced",
+        secure_mode: userSettings.secure_mode || false,
+        auto_save_insights: userSettings.auto_save_insights !== false,
+      });
+    }
+  }, [userSettings]);
+
+  // Update profile mutation
+  const updateProfileMutation = useMutation({
+    mutationFn: (data: { full_name?: string; role?: string }) =>
+      apiClient.updateUserProfile(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["currentUser"] });
+      toast.success("Profile updated successfully");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to update profile");
+    },
+  });
+
+  // Update settings mutation
+  const updateSettingsMutation = useMutation({
+    mutationFn: (settings: typeof settingsData) =>
+      apiClient.updateUserSettings(settings),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["userSettings"] });
+      // Also save to localStorage for immediate use
+      localStorage.setItem("userSettings", JSON.stringify(settingsData));
+      toast.success("Settings saved successfully");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to save settings");
+    },
+  });
+
+  const handleSaveChanges = () => {
+    // Update profile
+    updateProfileMutation.mutate({
+      full_name: profileData.full_name,
+      role: profileData.role,
+    });
+
+    // Update settings
+    updateSettingsMutation.mutate(settingsData);
+  };
+
+  const handleResetDefaults = () => {
+    const defaultSettings = {
+      default_industry: "BFSI",
+      proposal_tone: "professional",
+      ai_response_style: "balanced",
+      secure_mode: false,
+      auto_save_insights: true,
+    };
+    setSettingsData(defaultSettings);
+    updateSettingsMutation.mutate(defaultSettings);
+    toast.success("Settings reset to defaults");
+  };
+
+  if (isLoadingUser || isLoadingSettings) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -25,16 +147,34 @@ export default function Settings() {
                 <div className="grid gap-6 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="name">Full Name</Label>
-                    <Input id="name" defaultValue="John Doe" className="bg-background/50" />
+                    <Input
+                      id="name"
+                      value={profileData.full_name}
+                      onChange={(e) => setProfileData({ ...profileData, full_name: e.target.value })}
+                      className="bg-background/50"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email">Email Address</Label>
-                    <Input id="email" type="email" defaultValue="john@company.com" className="bg-background/50" />
+                    <Input
+                      id="email"
+                      type="email"
+                      value={profileData.email}
+                      disabled
+                      className="bg-background/50 opacity-60"
+                    />
+                    <p className="text-xs text-muted-foreground">Email cannot be changed</p>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">Role</Label>
-                  <Input id="role" defaultValue="Presales Manager" className="bg-background/50" />
+                  <Input
+                    id="role"
+                    value={profileData.role}
+                    onChange={(e) => setProfileData({ ...profileData, role: e.target.value })}
+                    placeholder="e.g., Presales Manager"
+                    className="bg-background/50"
+                  />
                 </div>
               </div>
             </Card>
@@ -45,21 +185,30 @@ export default function Settings() {
               <div className="space-y-6">
                 <div className="space-y-2">
                   <Label htmlFor="industry">Default Industry</Label>
-                  <Select defaultValue="bfsi">
+                  <Select
+                    value={settingsData.default_industry}
+                    onValueChange={(value) => setSettingsData({ ...settingsData, default_industry: value })}
+                  >
                     <SelectTrigger className="bg-background/50">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="bfsi">BFSI</SelectItem>
-                      <SelectItem value="retail">Retail</SelectItem>
-                      <SelectItem value="healthcare">Healthcare</SelectItem>
-                      <SelectItem value="technology">Technology</SelectItem>
+                      <SelectItem value="BFSI">BFSI</SelectItem>
+                      <SelectItem value="Retail">Retail</SelectItem>
+                      <SelectItem value="Healthcare">Healthcare</SelectItem>
+                      <SelectItem value="Technology">Technology</SelectItem>
+                      <SelectItem value="Manufacturing">Manufacturing</SelectItem>
+                      <SelectItem value="Education">Education</SelectItem>
+                      <SelectItem value="Government">Government</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="tone">Proposal Tone</Label>
-                  <Select defaultValue="professional">
+                  <Select
+                    value={settingsData.proposal_tone}
+                    onValueChange={(value) => setSettingsData({ ...settingsData, proposal_tone: value })}
+                  >
                     <SelectTrigger className="bg-background/50">
                       <SelectValue />
                     </SelectTrigger>
@@ -79,7 +228,10 @@ export default function Settings() {
               <div className="space-y-6">
                 <div className="space-y-2">
                   <Label htmlFor="response">AI Response Style</Label>
-                  <Select defaultValue="balanced">
+                  <Select
+                    value={settingsData.ai_response_style}
+                    onValueChange={(value) => setSettingsData({ ...settingsData, ai_response_style: value })}
+                  >
                     <SelectTrigger className="bg-background/50">
                       <SelectValue />
                     </SelectTrigger>
@@ -98,7 +250,10 @@ export default function Settings() {
                       Enhanced data privacy for sensitive documents
                     </p>
                   </div>
-                  <Switch />
+                  <Switch
+                    checked={settingsData.secure_mode}
+                    onCheckedChange={(checked) => setSettingsData({ ...settingsData, secure_mode: checked })}
+                  />
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
@@ -107,7 +262,10 @@ export default function Settings() {
                       Automatically save AI-generated insights
                     </p>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch
+                    checked={settingsData.auto_save_insights}
+                    onCheckedChange={(checked) => setSettingsData({ ...settingsData, auto_save_insights: checked })}
+                  />
                 </div>
               </div>
             </Card>
@@ -117,8 +275,26 @@ export default function Settings() {
             <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
               <h3 className="mb-4 font-heading text-lg font-semibold">Actions</h3>
               <div className="space-y-3">
-                <Button className="w-full bg-gradient-primary">Save Changes</Button>
-                <Button variant="outline" className="w-full">
+                <Button
+                  className="w-full bg-gradient-primary"
+                  onClick={handleSaveChanges}
+                  disabled={updateProfileMutation.isPending || updateSettingsMutation.isPending}
+                >
+                  {updateProfileMutation.isPending || updateSettingsMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleResetDefaults}
+                  disabled={updateSettingsMutation.isPending}
+                >
                   Reset to Defaults
                 </Button>
               </div>

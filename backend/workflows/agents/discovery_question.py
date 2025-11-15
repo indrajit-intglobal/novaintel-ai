@@ -2,9 +2,9 @@
 Discovery Question Agent - Generates categorized discovery questions.
 """
 from typing import Dict, Any, List
-from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from utils.config import settings
+from utils.llm_factory import get_llm
 
 class DiscoveryQuestionAgent:
     """Agent that generates discovery questions."""
@@ -16,15 +16,11 @@ class DiscoveryQuestionAgent:
     
     def _initialize(self):
         """Initialize the LLM."""
-        if settings.OPENAI_API_KEY:
-            try:
-                self.llm = ChatOpenAI(
-                    model="gpt-4-turbo-preview",
-                    temperature=0.3,
-                    api_key=settings.OPENAI_API_KEY
-                )
-            except Exception as e:
-                print(f"Error initializing Discovery Question Agent: {e}")
+        try:
+            self.llm = get_llm(provider=settings.LLM_PROVIDER, temperature=0.3)
+            print(f"✓ Discovery Question Agent initialized with {settings.LLM_PROVIDER}")
+        except Exception as e:
+            print(f"Error initializing Discovery Question Agent: {e}")
     
     def generate_questions(
         self,

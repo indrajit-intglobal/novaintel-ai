@@ -33,7 +33,7 @@ async def create_case_study(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new case study."""
-    new_case_study = CaseStudy(**case_study_data.dict())
+    new_case_study = CaseStudy(**case_study_data.model_dump())
     
     db.add(new_case_study)
     db.commit()
@@ -75,7 +75,7 @@ async def update_case_study(
         )
     
     # Update fields
-    update_data = case_study_data.dict(exclude_unset=True)
+    update_data = case_study_data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(case_study, field, value)
     

@@ -52,3 +52,8 @@ class ProposalPreviewResponse(BaseModel):
     word_count: Optional[int] = None
     section_count: Optional[int] = None
 
+class RegenerateSectionRequest(BaseModel):
+    proposal_id: int
+    section_id: int
+    section_title: str
+

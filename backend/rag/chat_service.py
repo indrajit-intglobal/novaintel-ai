@@ -2,37 +2,33 @@
 Chat service for RAG-based conversations with RFP documents.
 """
 from typing import List, Optional, Dict, Any
-from llama_index.core.llms import ChatMessage, MessageRole
-from llama_index.llms.openai import OpenAI
 from rag.retriever import retriever
 from utils.config import settings
+from utils.gemini_service import gemini_service
+
 
 class ChatService:
     """Service for chatting with RFP documents using RAG."""
     
     def __init__(self):
-        self.llm = None
+        self.service = gemini_service
         self._initialize()
     
     def _initialize(self):
         """Initialize LLM."""
-        if settings.OPENAI_API_KEY:
-            try:
-                self.llm = OpenAI(
-                    api_key=settings.OPENAI_API_KEY,
-                    model="gpt-4-turbo-preview",
-                    temperature=0.1
-                )
-                print("✓ Chat service initialized: gpt-4-turbo-preview")
-            except Exception as e:
-                print(f"✗ Error initializing chat service: {e}")
+        if self.service.is_available():
+            print(f"✓ Chat service initialized: {settings.GEMINI_MODEL}")
         else:
-            print("⚠ OpenAI API key not configured")
+            print("⚠ Gemini API key not configured")
     
     def is_available(self) -> bool:
         """Check if chat service is available."""
-        return self.llm is not None
+        return self.service.is_available()
     
+
+    # -------------------------------------------------------------------------
+    #                               CHAT METHOD
+    # -------------------------------------------------------------------------
     def chat(
         self,
         query: str,
@@ -42,83 +38,124 @@ class ChatService:
     ) -> Dict[str, Any]:
         """
         Chat with RFP document using RAG.
-        
-        Args:
-            query: User query
-            project_id: Project ID to filter context
-            conversation_history: Previous messages (optional)
-            top_k: Number of context chunks to retrieve
-        
-        Returns:
-            dict with 'answer', 'sources', 'context_used'
         """
+
         if not self.is_available():
             return {
                 'success': False,
                 'error': 'Chat service not available',
-                'answer': None
+                'answer': None,
+                'sources': [],
+                'context_used': 0,
+                'query': query
             }
-        
-        # Retrieve relevant context
+
+        # ------------------------------
+        # Retrieve context chunks
+        # ------------------------------
         nodes = retriever.retrieve(query, project_id, top_k)
-        
+
         if not nodes:
             return {
                 'success': False,
                 'error': 'No relevant context found',
-                'answer': None
+                'answer': None,
+                'sources': [],
+                'context_used': 0,
+                'query': query
             }
-        
-        # Build context from retrieved nodes
+
         context_parts = []
         sources = []
-        
+
         for i, node in enumerate(nodes, 1):
             text = node.node.get_content()
             metadata = node.node.metadata
+
             context_parts.append(f"[Context {i}]\n{text}")
             sources.append({
                 'chunk_index': i,
                 'metadata': metadata,
-                'score': node.score if hasattr(node, 'score') else None
+                'score': getattr(node, "score", None)
             })
-        
-        context = "\n\n".join(context_parts)
-        
-        # Build system prompt
-        system_prompt = """You are an AI assistant helping with RFP (Request for Proposal) analysis. 
-You have access to the RFP document content through the provided context. 
-Answer questions based on the context provided. If the answer is not in the context, say so.
-Be concise, accurate, and helpful."""
-        
-        # Build messages
-        messages = [
-            ChatMessage(role=MessageRole.SYSTEM, content=system_prompt)
-        ]
-        
-        # Add conversation history if provided
-        if conversation_history:
-            for msg in conversation_history:
-                role = MessageRole.USER if msg.get('role') == 'user' else MessageRole.ASSISTANT
-                messages.append(ChatMessage(role=role, content=msg.get('content', '')))
-        
-        # Add context and query
-        user_message = f"""Based on the following RFP document context, answer the question.
 
-Context:
+        context = "\n\n".join(context_parts)
+
+        # ------------------------------
+        # SYSTEM PROMPT (Compact + Strong)
+        # ------------------------------
+        system_prompt = """
+You are NovaIntel — an AI assistant specialized in RFP analysis and presales support.
+
+STRICT RULES:
+1. Use ONLY the provided RFP context, insights, and vector results.
+2. If information is missing, respond EXACTLY with:
+   "The provided RFP context does not contain this information."
+3. Never hallucinate, assume, or fabricate details.
+4. If user says "simplify" or "I don’t understand", rewrite in very simple words.
+5. Be concise, factual, structured, and professional.
+
+YOUR TASKS:
+- Interpret RFP scope, requirements, eligibility, and evaluation criteria.
+- Extract client challenges, risks, expectations.
+- Generate discovery questions and value propositions.
+- Summarize sections clearly.
+- Help with proposal drafting.
+
+GOAL:
+Deliver the most accurate, context-grounded RFP insights possible.
+"""
+
+        # ------------------------------
+        # USER PROMPT (Optimized)
+        # ------------------------------
+        user_prompt = f"""
+Below is the retrieved RFP context. Use ONLY this information.
+
+RFP CONTEXT:
 {context}
 
-Question: {query}
+USER QUESTION:
+{query}
 
-Answer:"""
-        
-        messages.append(ChatMessage(role=MessageRole.USER, content=user_message))
-        
+INSTRUCTIONS:
+- Answer strictly based on the context above.
+- Use structured formatting (bullet points, sections) when helpful.
+- If unclear, ask for clarification.
+"""
+
+        # ------------------------------
+        # Build message sequence
+        # ------------------------------
+        messages = [{"role": "system", "content": system_prompt}]
+
+        if conversation_history:
+            for msg in conversation_history:
+                messages.append({
+                    "role": msg.get("role", "user"),
+                    "content": msg.get("content", "")
+                })
+
+        messages.append({"role": "user", "content": user_prompt})
+
+        # ------------------------------
+        # Call Gemini
+        # ------------------------------
         try:
-            # Get response from LLM
-            response = self.llm.chat(messages)
-            answer = response.message.content if hasattr(response, 'message') else str(response)
-            
+            result = self.service.chat(messages, temperature=0.1)
+
+            if result.get("error"):
+                return {
+                    'success': False,
+                    'error': result["error"],
+                    'answer': None,
+                    'sources': sources,
+                    'context_used': len(nodes),
+                    'query': query
+                }
+
+            answer = result.get("content", "")
+
             return {
                 'success': True,
                 'answer': answer,
@@ -126,14 +163,17 @@ Answer:"""
                 'context_used': len(nodes),
                 'query': query
             }
-        
+
         except Exception as e:
             return {
                 'success': False,
-                'error': f'Error generating response: {str(e)}',
-                'answer': None
+                'error': f"Error generating response: {str(e)}",
+                'answer': None,
+                'sources': sources,
+                'context_used': len(nodes),
+                'query': query
             }
+
 
 # Global instance
 chat_service = ChatService()
-

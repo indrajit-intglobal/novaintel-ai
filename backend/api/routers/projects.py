@@ -15,17 +15,52 @@ async def create_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Create a new project."""
-    new_project = Project(
-        **project_data.dict(),
-        owner_id=current_user.id
-    )
+    """
+    Create a new project.
     
-    db.add(new_project)
-    db.commit()
-    db.refresh(new_project)
+    Required fields:
+    - name: str
+    - client_name: str
+    - industry: str
+    - region: str
+    - project_type: "new" | "expansion" | "renewal"
+    - description: str (optional)
     
-    return new_project
+    Example request:
+    {
+      "name": "Project Name",
+      "client_name": "Client Name",
+      "industry": "Healthcare",
+      "region": "North America",
+      "project_type": "new",
+      "description": "Optional description"
+    }
+    """
+    try:
+        print(f"Creating project for user: {current_user.email} (ID: {current_user.id})")
+        print(f"Project data received: {project_data.model_dump()}")
+        
+        new_project = Project(
+            **project_data.model_dump(),
+            owner_id=current_user.id
+        )
+        
+        db.add(new_project)
+        db.commit()
+        db.refresh(new_project)
+        
+        print(f"✓ Project created: {new_project.id} - {new_project.name}")
+        return new_project
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error creating project: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create project: {str(e)}"
+        )
 
 @router.get("/list", response_model=List[ProjectResponse])
 async def list_projects(
@@ -81,7 +116,7 @@ async def update_project(
         )
     
     # Update fields
-    update_data = project_data.dict(exclude_unset=True)
+    update_data = project_data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(project, field, value)
     

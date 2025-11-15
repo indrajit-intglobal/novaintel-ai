@@ -1,8 +1,7 @@
 """
-Embedding generation service using OpenAI.
+Embedding generation service using Hugging Face (free) or OpenAI.
 """
 from typing import List
-from llama_index.embeddings.openai import OpenAIEmbedding
 from utils.config import settings
 
 class EmbeddingService:
@@ -13,19 +12,18 @@ class EmbeddingService:
         self._initialize()
     
     def _initialize(self):
-        """Initialize embedding model."""
-        if settings.OPENAI_API_KEY:
-            try:
-                self.embedding_model = OpenAIEmbedding(
-                    model="text-embedding-3-large",
-                    api_key=settings.OPENAI_API_KEY,
-                    dimensions=3072
-                )
-                print("✓ Embedding service initialized: text-embedding-3-large")
-            except Exception as e:
-                print(f"✗ Error initializing embedding service: {e}")
-        else:
-            print("⚠ OpenAI API key not configured")
+        """Initialize embedding model - Hugging Face only."""
+        try:
+            # Use Hugging Face embeddings (free)
+            from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+            
+            self.embedding_model = HuggingFaceEmbedding(
+                model_name="sentence-transformers/all-MiniLM-L6-v2"
+            )
+            print("✓ Embedding service initialized: HuggingFace (all-MiniLM-L6-v2)")
+        except Exception as e:
+            print(f"✗ Error initializing HuggingFace embeddings: {e}")
+            print("⚠ No embedding service available")
     
     def get_embedding_model(self):
         """Get the embedding model instance."""

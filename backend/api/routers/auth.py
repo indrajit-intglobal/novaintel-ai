@@ -1,66 +1,142 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from datetime import timedelta
+from datetime import datetime
 from db.database import get_db
 from models.user import User
-from api.schemas.auth import UserRegister, UserLogin, TokenResponse, RefreshTokenRequest, UserResponse
+from api.schemas.auth import UserRegister, UserLogin, TokenResponse, RefreshTokenRequest, UserResponse, UserUpdate, UserSettingsUpdate
+from utils.config import settings
 from utils.security import (
     verify_password,
     get_password_hash,
     create_access_token,
     create_refresh_token,
-    decode_token
+    decode_token,
+    create_email_verification_token,
+    verify_email_token
 )
-from utils.config import settings
+from utils.email_service import send_verification_email
 
 router = APIRouter()
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserRegister, db: Session = Depends(get_db)):
-    """Register a new user."""
-    # Check if user already exists
-    existing_user = db.query(User).filter(User.email == user_data.email).first()
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+    """
+    Register a new user with email verification.
+    """
+    try:
+        # Check if user already exists
+        existing_user = db.query(User).filter(User.email == user_data.email).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+        
+        # Create new user
+        hashed_password = get_password_hash(user_data.password)
+        verification_token = create_email_verification_token(user_data.email)
+        
+        new_user = User(
+            email=user_data.email,
+            full_name=user_data.full_name,
+            hashed_password=hashed_password,
+            is_active=False,  # Inactive until email verified
+            email_verified=False,
+            email_verification_token=verification_token
         )
-    
-    # Create new user
-    hashed_password = get_password_hash(user_data.password)
-    new_user = User(
-        email=user_data.email,
-        full_name=user_data.full_name,
-        hashed_password=hashed_password
-    )
-    
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    
-    return new_user
+        
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        
+        # Send verification email
+        try:
+            await send_verification_email(user_data.email, verification_token)
+        except Exception as e:
+            print(f"Failed to send verification email: {e}")
+            # Continue anyway - user can request resend
+        
+        return {
+            "id": str(new_user.id),
+            "email": new_user.email,
+            "full_name": new_user.full_name,
+            "is_active": new_user.is_active,
+            "email_verified": new_user.email_verified,
+            "message": "Registration successful. Please check your email to verify your account."
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Registration error: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Registration failed: {str(e)}"
+        )
 
 @router.post("/login", response_model=TokenResponse)
 async def login(credentials: UserLogin, db: Session = Depends(get_db)):
-    """Login and get access token."""
+    """
+    Login and get access token.
+    User must have verified their email.
+    """
+    import sys
+    print(f"\n🔐 LOGIN ATTEMPT: {credentials.email}", file=sys.stderr, flush=True)
+    
+    # Find user
     user = db.query(User).filter(User.email == credentials.email).first()
     
-    if not user or not verify_password(credentials.password, user.hashed_password):
+    if not user:
+        print(f"❌ LOGIN FAILED: User not found for email: {credentials.email}", file=sys.stderr, flush=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    if not user.is_active:
+    print(f"✓ User found: {user.email} (ID: {user.id})", file=sys.stderr, flush=True)
+    print(f"  Email verified: {user.email_verified}, Active: {user.is_active}", file=sys.stderr, flush=True)
+    print(f"  Password hash prefix: {user.hashed_password[:20] if user.hashed_password else 'None'}...", file=sys.stderr, flush=True)
+    
+    # Verify password
+    try:
+        password_valid = verify_password(credentials.password, user.hashed_password)
+        print(f"  Password verification: {'✓ Valid' if password_valid else '❌ Invalid'}", file=sys.stderr, flush=True)
+    except Exception as e:
+        print(f"❌ Password verification error: {type(e).__name__}: {str(e)}", file=sys.stderr, flush=True)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is inactive"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     
+    if not password_valid:
+        print(f"❌ LOGIN FAILED: Password verification failed for: {credentials.email}", file=sys.stderr, flush=True)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Check if email is verified
+    if not user.email_verified:
+        print(f"❌ LOGIN FAILED: Email not verified for: {credentials.email}", file=sys.stderr, flush=True)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Please verify your email before logging in. Check your inbox for the verification link."
+        )
+    
+    # Activate user if not already active
+    if not user.is_active:
+        user.is_active = True
+        db.commit()
+    
     # Create tokens
-    access_token = create_access_token(data={"sub": user.id})
-    refresh_token = create_refresh_token(data={"sub": user.id})
+    access_token = create_access_token(data={"sub": user.email, "email": user.email, "user_id": user.id})
+    refresh_token = create_refresh_token(data={"sub": user.email, "email": user.email, "user_id": user.id})
     
     return {
         "access_token": access_token,
@@ -69,26 +145,29 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
     }
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh_token(token_data: RefreshTokenRequest):
+async def refresh_token(token_data: RefreshTokenRequest, db: Session = Depends(get_db)):
     """Refresh access token using refresh token."""
+    # Decode refresh token
     payload = decode_token(token_data.refresh_token)
     
-    if payload is None or payload.get("type") != "refresh":
+    if not payload or payload.get("type") != "refresh":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token"
         )
     
-    user_id = payload.get("sub")
-    if user_id is None:
+    user_email = payload.get("sub") or payload.get("email")
+    user = db.query(User).filter(User.email == user_email).first()
+    
+    if not user or not user.is_active or not user.email_verified:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload"
+            detail="Invalid refresh token"
         )
     
     # Create new tokens
-    access_token = create_access_token(data={"sub": user_id})
-    refresh_token = create_refresh_token(data={"sub": user_id})
+    access_token = create_access_token(data={"sub": user.email, "email": user.email, "user_id": user.id})
+    refresh_token = create_refresh_token(data={"sub": user.email, "email": user.email, "user_id": user.id})
     
     return {
         "access_token": access_token,
@@ -96,3 +175,103 @@ async def refresh_token(token_data: RefreshTokenRequest):
         "token_type": "bearer"
     }
 
+@router.get("/verify-email/{token}")
+async def verify_email(token: str, db: Session = Depends(get_db)):
+    """Verify user email using verification token."""
+    email = verify_email_token(token)
+    
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification token"
+        )
+    
+    user = db.query(User).filter(User.email == email).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    if user.email_verified:
+        return {"message": "Email already verified"}
+    
+    # Verify email
+    user.email_verified = True
+    user.is_active = True
+    user.email_verified_at = datetime.utcnow()
+    user.email_verification_token = None
+    db.commit()
+    
+    return {"message": "Email verified successfully"}
+
+@router.get("/me", response_model=UserResponse)
+async def get_current_user_profile(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get current user profile."""
+    return {
+        "id": str(current_user.id),
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "is_active": current_user.is_active,
+        "email_verified": current_user.email_verified,
+        "role": current_user.role or "presales_manager"
+    }
+
+@router.put("/me", response_model=UserResponse)
+async def update_current_user_profile(
+    user_update: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update current user profile."""
+    if user_update.full_name is not None:
+        current_user.full_name = user_update.full_name
+    if user_update.role is not None:
+        current_user.role = user_update.role
+    
+    current_user.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(current_user)
+    
+    return {
+        "id": str(current_user.id),
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "is_active": current_user.is_active,
+        "email_verified": current_user.email_verified,
+        "role": current_user.role or "presales_manager"
+    }
+
+@router.get("/me/settings")
+async def get_user_settings(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get user settings (stored in localStorage on frontend, but provide endpoint for future use)."""
+    # For now, return default settings
+    # In future, can store in database JSON column
+    return {
+        "default_industry": "BFSI",
+        "proposal_tone": "professional",
+        "ai_response_style": "balanced",
+        "secure_mode": False,
+        "auto_save_insights": True
+    }
+
+@router.put("/me/settings")
+async def update_user_settings(
+    settings_update: UserSettingsUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update user settings (for now, just acknowledge - can store in DB later)."""
+    # For now, settings are stored in localStorage on frontend
+    # This endpoint can be used to persist settings in the future
+    return {
+        "message": "Settings updated successfully",
+        "settings": settings_update.model_dump(exclude_unset=True)
+    }

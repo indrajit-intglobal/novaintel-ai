@@ -2,9 +2,9 @@
 RFP Analyzer Agent - Extracts summary, business context, objectives, and scope.
 """
 from typing import Dict, Any
-from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from utils.config import settings
+from utils.llm_factory import get_llm
 from rag.retriever import retriever
 
 class RFPAnalyzerAgent:
@@ -16,15 +16,11 @@ class RFPAnalyzerAgent:
     
     def _initialize(self):
         """Initialize the LLM."""
-        if settings.OPENAI_API_KEY:
-            try:
-                self.llm = ChatOpenAI(
-                    model="gpt-4-turbo-preview",
-                    temperature=0.1,
-                    api_key=settings.OPENAI_API_KEY
-                )
-            except Exception as e:
-                print(f"Error initializing RFP Analyzer Agent: {e}")
+        try:
+            self.llm = get_llm(provider=settings.LLM_PROVIDER, temperature=0.1)
+            print(f"✓ RFP Analyzer Agent initialized with {settings.LLM_PROVIDER}")
+        except Exception as e:
+            print(f"Error initializing RFP Analyzer Agent: {e}")
     
     def analyze(
         self,
@@ -97,14 +93,25 @@ Provide your analysis in the following JSON format:
             context_section = f"\nAdditional Context:\n{retrieved_context}"
         
         try:
+            print(f"    [RFP Analyzer] Invoking LLM with {len(rfp_text)} chars of RFP text...")
             chain = prompt | self.llm
             response = chain.invoke({
                 "rfp_text": rfp_text[:10000],  # Limit text length
                 "context_section": context_section
             })
             
+            print(f"    [RFP Analyzer] LLM response received: {type(response)}")
+            
             # Parse response (assuming JSON format)
-            content = response.content
+            if hasattr(response, 'content'):
+                content = response.content
+            elif hasattr(response, 'text'):
+                content = response.text
+            else:
+                content = str(response)
+            
+            print(f"    [RFP Analyzer] Response content length: {len(content) if content else 0} chars")
+            print(f"    [RFP Analyzer] Response preview: {content[:200] if content else 'None'}...")
             
             # Try to extract JSON from response
             import json
@@ -113,8 +120,19 @@ Provide your analysis in the following JSON format:
             # Look for JSON in the response
             json_match = re.search(r'\{.*\}', content, re.DOTALL)
             if json_match:
-                result = json.loads(json_match.group())
+                try:
+                    result = json.loads(json_match.group())
+                    print(f"    [RFP Analyzer] ✓ Successfully parsed JSON response")
+                except json.JSONDecodeError as e:
+                    print(f"    [RFP Analyzer] ⚠️  JSON parse error: {e}, using fallback")
+                    result = {
+                        "rfp_summary": content[:500] if content else None,
+                        "context_overview": "Extracted from RFP",
+                        "business_objectives": [],
+                        "project_scope": content[500:1500] if len(content) > 500 else content
+                    }
             else:
+                print(f"    [RFP Analyzer] ⚠️  No JSON found in response, using fallback")
                 # Fallback: parse manually
                 result = {
                     "rfp_summary": content[:500] if content else None,
@@ -123,15 +141,23 @@ Provide your analysis in the following JSON format:
                     "project_scope": content[500:1500] if len(content) > 500 else content
                 }
             
-            return {
+            final_result = {
                 "rfp_summary": result.get("rfp_summary"),
                 "context_overview": result.get("context_overview"),
                 "business_objectives": result.get("business_objectives", []),
                 "project_scope": result.get("project_scope"),
                 "error": None
             }
+            
+            print(f"    [RFP Analyzer] Final result - Summary: {len(str(final_result.get('rfp_summary'))) if final_result.get('rfp_summary') else 0} chars, "
+                  f"Objectives: {len(final_result.get('business_objectives', []))}")
+            
+            return final_result
         
         except Exception as e:
+            print(f"    [RFP Analyzer] ❌ Exception: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return {
                 "rfp_summary": None,
                 "context_overview": None,

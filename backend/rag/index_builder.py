@@ -4,7 +4,6 @@ Index builder for RAG pipeline.
 from typing import List, Optional, Dict, Any
 from llama_index.core import VectorStoreIndex, StorageContext
 from llama_index.core.schema import BaseNode
-from llama_index.core.vector_stores import VectorStore
 from rag.vector_store import vector_store_manager
 from rag.document_processor import document_processor
 from rag.embedding_service import embedding_service

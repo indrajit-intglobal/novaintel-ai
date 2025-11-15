@@ -1,54 +1,45 @@
 """
-Vector database integration for Pinecone and Supabase Vector.
+Vector database integration using Chroma.
 """
 from typing import List, Optional, Dict, Any
-from llama_index.vector_stores.pinecone import PineconeVectorStore
-from llama_index.core.vector_stores import VectorStoreQuery, VectorStoreQueryResult
-from llama_index.core.schema import NodeWithScore, TextNode
-import pinecone
 from utils.config import settings
+import chromadb
+from chromadb.config import Settings as ChromaSettings
+from llama_index.vector_stores.chroma import ChromaVectorStore
+from llama_index.core import VectorStoreIndex, StorageContext
 
 class VectorStoreManager:
     """Manage vector database connections and operations."""
     
     def __init__(self):
-        self.pinecone_index = None
+        self.chroma_client = None
         self.vector_store = None
         self._initialize()
     
     def _initialize(self):
-        """Initialize vector database connection."""
-        if settings.PINECONE_API_KEY:
-            try:
-                # Initialize Pinecone
-                pinecone.init(
-                    api_key=settings.PINECONE_API_KEY,
-                    environment=settings.PINECONE_ENVIRONMENT
+        """Initialize Chroma vector database."""
+        try:
+            if settings.VECTOR_DB_TYPE == "chroma":
+                # Initialize Chroma client
+                self.chroma_client = chromadb.PersistentClient(
+                    path=settings.CHROMA_PERSIST_DIR
                 )
                 
-                # Get or create index
-                index_name = settings.PINECONE_INDEX_NAME
-                if index_name not in pinecone.list_indexes():
-                    # Create index if it doesn't exist
-                    pinecone.create_index(
-                        name=index_name,
-                        dimension=3072,  # text-embedding-3-large dimension
-                        metric="cosine"
-                    )
-                
-                self.pinecone_index = pinecone.Index(index_name)
+                # Create or get collection
+                collection = self.chroma_client.get_or_create_collection(
+                    name="novaintel_documents",
+                    metadata={"hnsw:space": "cosine"}
+                )
                 
                 # Create LlamaIndex vector store
-                self.vector_store = PineconeVectorStore(
-                    pinecone_index=self.pinecone_index
-                )
+                self.vector_store = ChromaVectorStore(chroma_collection=collection)
                 
-                print(f"✓ Pinecone vector store initialized: {index_name}")
-            except Exception as e:
-                print(f"✗ Error initializing Pinecone: {e}")
-                self.vector_store = None
-        else:
-            print("⚠ Pinecone API key not configured")
+                print(f"✓ Chroma vector store initialized: {settings.CHROMA_PERSIST_DIR}")
+            else:
+                print(f"⚠ Vector DB type '{settings.VECTOR_DB_TYPE}' not implemented")
+        except Exception as e:
+            print(f"✗ Error initializing vector store: {e}")
+            self.vector_store = None
     
     def get_vector_store(self):
         """Get the vector store instance."""
@@ -60,12 +51,12 @@ class VectorStoreManager:
     
     def delete_by_ids(self, ids: List[str]) -> bool:
         """Delete vectors by IDs."""
-        if not self.is_available():
+        if not self.is_available() or settings.VECTOR_DB_TYPE != "chroma":
             return False
         
         try:
-            if self.pinecone_index:
-                self.pinecone_index.delete(ids=ids)
+            collection = self.chroma_client.get_collection("novaintel_documents")
+            collection.delete(ids=ids)
             return True
         except Exception as e:
             print(f"Error deleting vectors: {e}")
@@ -73,12 +64,14 @@ class VectorStoreManager:
     
     def delete_by_metadata_filter(self, filter_dict: Dict[str, Any]) -> bool:
         """Delete vectors by metadata filter."""
-        if not self.is_available():
+        if not self.is_available() or settings.VECTOR_DB_TYPE != "chroma":
             return False
         
         try:
-            if self.pinecone_index:
-                self.pinecone_index.delete(filter=filter_dict)
+            collection = self.chroma_client.get_collection("novaintel_documents")
+            # Convert filter dict to Chroma format
+            where = filter_dict
+            collection.delete(where=where)
             return True
         except Exception as e:
             print(f"Error deleting vectors by filter: {e}")
@@ -86,4 +79,3 @@ class VectorStoreManager:
 
 # Global instance
 vector_store_manager = VectorStoreManager()
-

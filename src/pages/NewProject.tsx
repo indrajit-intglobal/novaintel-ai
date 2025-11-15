@@ -7,21 +7,152 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Upload, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
+import { toast } from "sonner";
 
 export default function NewProject() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [clientName, setClientName] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [region, setRegion] = useState("");
+  const [projectType, setProjectType] = useState("");
+  const [description, setDescription] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedTasks, setSelectedTasks] = useState({
     challenges: true,
     questions: true,
     cases: true,
     proposal: true,
   });
+  const [projectId, setProjectId] = useState<number | null>(null);
 
   const handleTaskToggle = (taskId: string) => {
     setSelectedTasks(prev => ({
       ...prev,
       [taskId]: !prev[taskId as keyof typeof prev]
     }));
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    }
+  };
+
+  const handleFileDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setSelectedFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const createProjectMutation = useMutation({
+    mutationFn: async () => {
+      if (!clientName || !industry || !region || !projectType) {
+        throw new Error("Please fill in all required fields");
+      }
+      
+      // Normalize project_type value (handle legacy "new_business" value)
+      const normalizedProjectType = projectType === "new_business" ? "new" : projectType;
+      
+      const project = await apiClient.createProject({
+        name: `${clientName} - ${projectType}`,
+        client_name: clientName,
+        industry,
+        region,
+        project_type: normalizedProjectType,
+        description: description || undefined,
+      });
+      
+      setProjectId(project.id);
+      return project;
+    },
+    onSuccess: async (project) => {
+      toast.success("Project created successfully!");
+      
+      // If file is selected, upload it
+      if (selectedFile && project.id) {
+        try {
+          const uploadResult = await apiClient.uploadRFP(project.id, selectedFile);
+          toast.success("RFP uploaded successfully!");
+          
+          // Build index
+          try {
+            await apiClient.buildIndex(uploadResult.rfp_document_id);
+            toast.success("Index built successfully!");
+            
+            // Run workflow if tasks are selected
+            if (selectedTasks.challenges || selectedTasks.questions || selectedTasks.cases || selectedTasks.proposal) {
+              try {
+                console.log(`Starting workflow for project ${project.id}, RFP document ${uploadResult.rfp_document_id}`);
+                const workflowResult = await apiClient.runWorkflow(project.id, uploadResult.rfp_document_id);
+                console.log("Workflow result:", workflowResult);
+                
+                if (workflowResult.success) {
+                  toast.success("Analysis started! This may take a few minutes.");
+                } else {
+                  toast.error(`Workflow failed: ${workflowResult.error || 'Unknown error'}`);
+                  console.error("Workflow failed:", workflowResult);
+                }
+              } catch (error: any) {
+                const errorMessage = error.message || error.detail || 'Unknown error';
+                toast.error(`Failed to start analysis: ${errorMessage}`);
+                console.error("Workflow error:", error);
+                // Still navigate to insights page so user can see the error
+              }
+            } else {
+              console.log("No tasks selected, skipping workflow");
+            }
+          } catch (error: any) {
+            toast.error(`Failed to build index: ${error.message}`);
+          }
+          
+          // Navigate to insights page
+          navigate(`/insights?project_id=${project.id}`);
+        } catch (error: any) {
+          toast.error(`Failed to upload RFP: ${error.message}`);
+        }
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["projects"] });
+        navigate("/dashboard");
+      }
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to create project");
+    },
+  });
+
+  const handleAnalyze = async () => {
+    if (!projectId || !selectedFile) {
+      // Create project first
+      createProjectMutation.mutate();
+      return;
+    }
+
+    try {
+      // Upload file if not already uploaded
+      const uploadResult = await apiClient.uploadRFP(projectId, selectedFile);
+      
+      // Build index
+      await apiClient.buildIndex(uploadResult.rfp_document_id);
+      
+      // Run workflow if tasks are selected
+      if (selectedTasks.challenges || selectedTasks.questions || selectedTasks.cases || selectedTasks.proposal) {
+        await apiClient.runWorkflow(projectId, uploadResult.rfp_document_id);
+        toast.success("Analysis started! This may take a few minutes.");
+        navigate(`/insights?project_id=${projectId}`);
+      } else {
+        navigate(`/insights?project_id=${projectId}`);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Analysis failed");
+    }
   };
 
   return (
@@ -42,40 +173,47 @@ export default function NewProject() {
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="clientName">Client Name</Label>
-                  <Input id="clientName" placeholder="Enter client name" className="bg-background/50" />
+                  <Input 
+                    id="clientName" 
+                    placeholder="Enter client name" 
+                    className="bg-background/50"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    required
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="industry">Industry</Label>
-                  <Select>
+                  <Select value={industry} onValueChange={setIndustry}>
                     <SelectTrigger className="bg-background/50">
                       <SelectValue placeholder="Select industry" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="bfsi">BFSI</SelectItem>
-                      <SelectItem value="retail">Retail</SelectItem>
-                      <SelectItem value="healthcare">Healthcare</SelectItem>
-                      <SelectItem value="technology">Technology</SelectItem>
-                      <SelectItem value="manufacturing">Manufacturing</SelectItem>
+                      <SelectItem value="BFSI">BFSI</SelectItem>
+                      <SelectItem value="Retail">Retail</SelectItem>
+                      <SelectItem value="Healthcare">Healthcare</SelectItem>
+                      <SelectItem value="Technology">Technology</SelectItem>
+                      <SelectItem value="Manufacturing">Manufacturing</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="region">Region</Label>
-                  <Select>
+                  <Select value={region} onValueChange={setRegion}>
                     <SelectTrigger className="bg-background/50">
                       <SelectValue placeholder="Select region" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="north-america">North America</SelectItem>
-                      <SelectItem value="europe">Europe</SelectItem>
-                      <SelectItem value="apac">APAC</SelectItem>
-                      <SelectItem value="latam">LATAM</SelectItem>
+                      <SelectItem value="North America">North America</SelectItem>
+                      <SelectItem value="Europe">Europe</SelectItem>
+                      <SelectItem value="APAC">APAC</SelectItem>
+                      <SelectItem value="LATAM">LATAM</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="projectType">Project Type</Label>
-                  <Select>
+                  <Select value={projectType} onValueChange={setProjectType}>
                     <SelectTrigger className="bg-background/50">
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
@@ -94,6 +232,8 @@ export default function NewProject() {
                   placeholder="Brief overview of the opportunity..."
                   className="bg-background/50"
                   rows={3}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
                 />
               </div>
             </Card>
@@ -101,12 +241,39 @@ export default function NewProject() {
             {/* Upload RFP */}
             <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
               <h2 className="mb-6 font-heading text-xl font-semibold">Upload RFP Document</h2>
-              <div className="flex items-center justify-center rounded-xl border-2 border-dashed border-border bg-background/30 p-12 transition-colors hover:border-primary/50">
+              <div
+                className="flex items-center justify-center rounded-xl border-2 border-dashed border-border bg-background/30 p-12 transition-colors hover:border-primary/50 cursor-pointer"
+                onDrop={handleFileDrop}
+                onDragOver={(e) => e.preventDefault()}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.docx"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
                 <div className="text-center">
                   <Upload className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
                   <p className="mb-2 font-medium">
-                    Drag and drop your RFP file here, or{" "}
-                    <button className="text-primary hover:underline">browse</button>
+                    {selectedFile ? (
+                      <span className="text-primary">{selectedFile.name}</span>
+                    ) : (
+                      <>
+                        Drag and drop your RFP file here, or{" "}
+                        <button 
+                          type="button"
+                          className="text-primary hover:underline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            fileInputRef.current?.click();
+                          }}
+                        >
+                          browse
+                        </button>
+                      </>
+                    )}
                   </p>
                   <p className="text-sm text-muted-foreground">Supports PDF, DOCX (Max 20MB)</p>
                 </div>
@@ -152,10 +319,27 @@ export default function NewProject() {
                 Our AI will analyze your RFP and extract key insights, generate discovery questions, and recommend relevant case studies.
               </p>
               <div className="space-y-3">
-                <Button className="w-full bg-white text-primary hover:bg-white/90 shadow-sm" size="lg">
-                  Analyze RFP
+                <Button 
+                  className="w-full bg-white text-primary hover:bg-white/90 shadow-sm" 
+                  size="lg"
+                  onClick={handleAnalyze}
+                  disabled={createProjectMutation.isPending || !clientName || !industry || !region || !projectType}
+                >
+                  {createProjectMutation.isPending ? "Creating..." : "Analyze RFP"}
                 </Button>
-                <Button className="w-full border-2 border-white/30 bg-white/10 text-white backdrop-blur-sm hover:bg-white/20 hover:border-white/50" size="lg">
+                <Button 
+                  className="w-full border-2 border-white/30 bg-white/10 text-white backdrop-blur-sm hover:bg-white/20 hover:border-white/50" 
+                  size="lg"
+                  onClick={() => {
+                    if (!projectId) {
+                      createProjectMutation.mutate();
+                    } else {
+                      queryClient.invalidateQueries({ queryKey: ["projects"] });
+                      navigate("/dashboard");
+                    }
+                  }}
+                  disabled={createProjectMutation.isPending}
+                >
                   Save Draft
                 </Button>
               </div>

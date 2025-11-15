@@ -31,6 +31,13 @@ class CaseStudyMatcherAgent:
             dict with matching_case_studies list
         """
         try:
+            # Handle None or empty challenges
+            if not challenges:
+                return {
+                    "matching_case_studies": [],
+                    "error": None
+                }
+            
             # Extract key terms from challenges
             challenge_texts = [
                 ch.get('description', '') + ' ' + ch.get('category', '')

@@ -1,11 +1,72 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { ArrowRight } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 export default function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      const from = (location.state as any)?.from?.pathname || "/dashboard";
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, authLoading, navigate, location]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      await login(email, password);
+      
+      // Wait for React state to update (use flushSync or wait for next tick)
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      toast.success("Login successful!");
+      
+      // Get redirect location from state or default to dashboard
+      const from = (location.state as any)?.from?.pathname || "/dashboard";
+      
+      // Navigate after ensuring state is updated
+      navigate(from, { replace: true });
+    } catch (error: any) {
+      // Check if error is about email verification
+      const errorMessage = error.message || "";
+      if (errorMessage.toLowerCase().includes("verify your email") || errorMessage.toLowerCase().includes("email not confirmed")) {
+        toast.error("Please verify your email before logging in. Check your inbox for the verification link.", {
+          duration: 6000,
+        });
+      } else {
+        toast.error(errorMessage || "Login failed. Please check your credentials.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Show loading state while checking auth
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-hero px-4">
       <Card className="w-full max-w-md border-border/40 bg-gradient-card p-8 shadow-glass backdrop-blur-sm">
@@ -17,7 +78,7 @@ export default function Login() {
           <p className="text-muted-foreground">Sign in to continue to NovaIntel</p>
         </div>
 
-        <form className="space-y-6">
+        <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-2">
             <Label htmlFor="email">Email Address</Label>
             <Input
@@ -25,6 +86,10 @@ export default function Login() {
               type="email"
               placeholder="you@company.com"
               className="bg-background/50"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={isLoading}
             />
           </div>
 
@@ -40,11 +105,15 @@ export default function Login() {
               type="password"
               placeholder="Enter your password"
               className="bg-background/50"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={isLoading}
             />
           </div>
 
-          <Button type="submit" className="w-full bg-gradient-primary shadow-md">
-            Sign In <ArrowRight className="ml-2 h-4 w-4" />
+          <Button type="submit" className="w-full bg-gradient-primary shadow-md" disabled={isLoading}>
+            {isLoading ? "Signing in..." : "Sign In"} <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </form>
 

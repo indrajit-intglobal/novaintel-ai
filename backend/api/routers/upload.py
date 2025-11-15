@@ -6,13 +6,14 @@ from pathlib import Path
 from datetime import datetime
 from db.database import get_db
 from models.user import User
-from models.project import Project, RFPDocument
+from models.project import Project
+from models.rfp_document import RFPDocument  # Fixed: import from correct module
 from utils.dependencies import get_current_user
 from utils.config import settings
 
 router = APIRouter()
 
-# Ensure upload directory exists
+# Ensure upload directory exists (fallback)
 UPLOAD_DIR = Path(settings.UPLOAD_DIR)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -66,18 +67,23 @@ async def upload_rfp(
     # Generate unique filename
     file_ext = get_file_extension(file.filename)
     unique_filename = f"{uuid.uuid4()}{file_ext}"
-    file_path = UPLOAD_DIR / unique_filename
     
-    # Save file
-    with open(file_path, "wb") as f:
+    # Create project-specific directory
+    project_dir = UPLOAD_DIR / f"project_{project_id}"
+    project_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Upload to local storage
+    local_file_path = project_dir / unique_filename
+    with open(local_file_path, "wb") as f:
         f.write(file_content)
+    storage_path = str(local_file_path)
     
     # Create database record
     rfp_doc = RFPDocument(
         project_id=project_id,
         filename=unique_filename,
         original_filename=file.filename,
-        file_path=str(file_path),
+        file_path=storage_path,
         file_size=file_size,
         file_type=file_ext[1:]  # Remove the dot
     )

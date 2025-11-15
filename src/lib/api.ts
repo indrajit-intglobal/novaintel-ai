@@ -1,0 +1,491 @@
+// API client for backend communication
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
+export interface ApiError {
+  detail: string;
+}
+
+// Types for API requests/responses
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  full_name: string;
+  password: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  full_name: string;
+  is_active?: boolean;
+  email_verified?: boolean;
+  role?: string;
+}
+
+export interface Project {
+  id: number;
+  name: string;
+  client_name: string;
+  industry: string;
+  region: string;
+  project_type: string;
+  description?: string;
+  status: string;
+  owner_id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectCreate {
+  name: string;
+  client_name: string;
+  industry: string;
+  region: string;
+  project_type: string;
+  description?: string;
+}
+
+export interface RFPUploadResponse {
+  id: number;
+  filename: string;
+  file_size: number;
+  file_type: string;
+  uploaded_at: string;
+  message: string;
+  rfp_document_id: number;
+}
+
+export interface Insights {
+  id: number;
+  project_id: number;
+  rfp_summary?: any;
+  challenges?: any[];
+  value_propositions?: any[];
+  discovery_questions?: any;
+  matching_case_studies?: any[];
+  proposal_draft?: any;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatRequest {
+  project_id: number;
+  query: string;
+  conversation_history?: Array<{ role: string; content: string }>;
+  top_k?: number;
+}
+
+export interface ChatResponse {
+  success?: boolean;
+  answer?: string;
+  response?: string;
+  sources?: any[];
+  query?: string;
+  error?: string;
+}
+
+class ApiClient {
+  private baseURL: string;
+
+  constructor(baseURL: string) {
+    this.baseURL = baseURL;
+  }
+
+  private getAuthToken(): string | null {
+    return localStorage.getItem('access_token');
+  }
+
+  private getRefreshToken(): string | null {
+    return localStorage.getItem('refresh_token');
+  }
+
+  private setTokens(accessToken: string, refreshToken: string): void {
+    localStorage.setItem('access_token', accessToken);
+    localStorage.setItem('refresh_token', refreshToken);
+  }
+
+  private clearTokens(): void {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+  }
+
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    const token = this.getAuthToken();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const url = `${this.baseURL}${endpoint}`;
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
+
+    // Handle authentication errors (401/403)
+    if (response.status === 401 || response.status === 403) {
+      // Try to refresh token if we have one
+      if (token) {
+        const refreshToken = this.getRefreshToken();
+        if (refreshToken) {
+          try {
+            const refreshed = await this.refreshAccessToken(refreshToken);
+            this.setTokens(refreshed.access_token, refreshed.refresh_token);
+            
+            // Retry original request with new token
+            const newHeaders = {
+              ...headers,
+              'Authorization': `Bearer ${refreshed.access_token}`,
+            };
+            const retryResponse = await fetch(url, {
+              ...options,
+              headers: newHeaders,
+            });
+            
+            if (retryResponse.ok) {
+              return retryResponse.json();
+            }
+          } catch (error) {
+            // Refresh failed, clear tokens
+            this.clearTokens();
+            // Don't redirect here - let the component handle it
+            throw new Error('Session expired. Please login again.');
+          }
+        }
+      }
+      
+      // No token or refresh failed
+      this.clearTokens();
+      // Don't redirect here - let ProtectedRoute handle it
+      throw new Error('Authentication required. Please login.');
+    }
+
+    if (!response.ok) {
+      const error: ApiError = await response.json().catch(() => ({
+        detail: `HTTP ${response.status}: ${response.statusText}`,
+      }));
+      throw new Error(error.detail || 'An error occurred');
+    }
+
+    // Handle empty responses
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return response.json();
+    }
+    
+    return {} as T;
+  }
+
+  // Auth endpoints
+  async login(credentials: LoginRequest): Promise<TokenResponse> {
+    const response = await this.request<TokenResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    });
+    this.setTokens(response.access_token, response.refresh_token);
+    return response;
+  }
+
+  async register(userData: RegisterRequest): Promise<User> {
+    const response = await this.request<User>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+    // Don't auto-login after registration if email verification is required
+    // Return response so frontend can handle verification message
+    return response;
+  }
+
+  async refreshAccessToken(refreshToken: string): Promise<TokenResponse> {
+    return this.request<TokenResponse>('/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+  }
+
+  logout(): void {
+    this.clearTokens();
+  }
+
+  // User profile endpoints
+  async getCurrentUser(): Promise<User> {
+    return this.request<User>('/auth/me');
+  }
+
+  async updateUserProfile(data: { full_name?: string; role?: string }): Promise<User> {
+    return this.request<User>('/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getUserSettings(): Promise<any> {
+    return this.request<any>('/auth/me/settings');
+  }
+
+  async updateUserSettings(settings: {
+    default_industry?: string;
+    proposal_tone?: string;
+    ai_response_style?: string;
+    secure_mode?: boolean;
+    auto_save_insights?: boolean;
+  }): Promise<any> {
+    return this.request<any>('/auth/me/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
+  }
+
+  // Project endpoints
+  async createProject(project: ProjectCreate): Promise<Project> {
+    return this.request<Project>('/projects/create', {
+      method: 'POST',
+      body: JSON.stringify(project),
+    });
+  }
+
+  async listProjects(): Promise<Project[]> {
+    return this.request<Project[]>('/projects/list');
+  }
+
+  async getProject(projectId: number): Promise<Project> {
+    return this.request<Project>(`/projects/${projectId}`);
+  }
+
+  async updateProject(projectId: number, project: Partial<ProjectCreate>): Promise<Project> {
+    return this.request<Project>(`/projects/${projectId}`, {
+      method: 'PUT',
+      body: JSON.stringify(project),
+    });
+  }
+
+  async deleteProject(projectId: number): Promise<void> {
+    return this.request<void>(`/projects/${projectId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Upload endpoints
+  async uploadRFP(projectId: number, file: File): Promise<RFPUploadResponse> {
+    const token = this.getAuthToken();
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${this.baseURL}/upload/rfp?project_id=${projectId}`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error: ApiError = await response.json().catch(() => ({
+        detail: `HTTP ${response.status}: ${response.statusText}`,
+      }));
+      throw new Error(error.detail || 'Upload failed');
+    }
+
+    return response.json();
+  }
+
+  // Insights endpoints
+  async getInsights(projectId: number): Promise<Insights> {
+    return this.request<Insights>(`/insights/get?project_id=${projectId}`);
+  }
+
+  // RAG endpoints
+  async buildIndex(rfpDocumentId: number): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>('/rag/build-index', {
+      method: 'POST',
+      body: JSON.stringify({ rfp_document_id: rfpDocumentId }),
+    });
+  }
+
+  async chatWithRFP(projectId: number, query: string, conversationHistory?: Array<{ role: string; content: string }>): Promise<ChatResponse> {
+    const response = await this.request<ChatResponse>('/rag/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        project_id: projectId,
+        query,
+        conversation_history: conversationHistory || [],
+        top_k: 5,
+      }),
+    });
+    // Normalize response format
+    return {
+      ...response,
+      response: response.response || response.answer || '',
+    };
+  }
+
+  // Agents/Workflow endpoints
+  async runWorkflow(projectId: number, rfpDocumentId: number): Promise<any> {
+    return this.request<any>('/agents/run-all', {
+      method: 'POST',
+      body: JSON.stringify({
+        project_id: projectId,
+        rfp_document_id: rfpDocumentId,
+      }),
+    });
+  }
+
+  async getWorkflowState(stateId: string): Promise<any> {
+    return this.request<any>('/agents/get-state', {
+      method: 'POST',
+      body: JSON.stringify({ state_id: stateId }),
+    });
+  }
+
+  // Case studies endpoints
+  async listCaseStudies(): Promise<any[]> {
+    return this.request<any[]>('/case-studies');
+  }
+
+  async getCaseStudy(id: number): Promise<any> {
+    return this.request<any>(`/case-studies/${id}`);
+  }
+
+  async createCaseStudy(caseStudy: {
+    title: string;
+    industry: string;
+    impact: string;
+    description?: string;
+  }): Promise<any> {
+    return this.request<any>('/case-studies', {
+      method: 'POST',
+      body: JSON.stringify(caseStudy),
+    });
+  }
+
+  async updateCaseStudy(id: number, caseStudy: {
+    title?: string;
+    industry?: string;
+    impact?: string;
+    description?: string;
+  }): Promise<any> {
+    return this.request<any>(`/case-studies/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(caseStudy),
+    });
+  }
+
+  async deleteCaseStudy(id: number): Promise<void> {
+    return this.request<void>(`/case-studies/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Proposal endpoints
+  async getProposal(proposalId: number): Promise<any> {
+    return this.request<any>(`/proposal/${proposalId}`);
+  }
+
+  async getProposalByProject(projectId: number): Promise<any> {
+    // Get proposal for a project (if exists)
+    try {
+      return await this.request<any>(`/proposal/by-project/${projectId}`);
+    } catch (error: any) {
+      // Return null if 404 (proposal doesn't exist yet)
+      if (error.message?.includes('404') || error.message?.includes('not found')) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async saveProposal(proposal: any): Promise<any> {
+    return this.request<any>('/proposal/save', {
+      method: 'POST',
+      body: JSON.stringify(proposal),
+    });
+  }
+
+  async updateProposal(proposalId: number, proposal: any): Promise<any> {
+    return this.request<any>(`/proposal/${proposalId}`, {
+      method: 'PUT',
+      body: JSON.stringify(proposal),
+    });
+  }
+
+  async generateProposal(projectId: number, templateType: string = 'full', useInsights: boolean = true): Promise<any> {
+    return this.request<any>('/proposal/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        project_id: projectId,
+        template_type: templateType,
+        use_insights: useInsights,
+      }),
+    });
+  }
+
+  async saveProposalDraft(proposalId: number, sections: any[], title?: string): Promise<any> {
+    return this.request<any>('/proposal/save-draft', {
+      method: 'POST',
+      body: JSON.stringify({
+        proposal_id: proposalId,
+        sections,
+        title,
+      }),
+    });
+  }
+
+  async getProposalPreview(proposalId: number): Promise<any> {
+    return this.request<any>(`/proposal/${proposalId}/preview`);
+  }
+
+  async regenerateSection(proposalId: number, sectionId: number, sectionTitle: string): Promise<any> {
+    return this.request<any>('/proposal/regenerate-section', {
+      method: 'POST',
+      body: JSON.stringify({
+        proposal_id: proposalId,
+        section_id: sectionId,
+        section_title: sectionTitle,
+      }),
+    });
+  }
+
+  async exportProposal(proposalId: number, format: 'pdf' | 'docx' | 'pptx'): Promise<Blob> {
+    const token = this.getAuthToken();
+    const formatMap: Record<string, string> = {
+      pdf: 'pdf',
+      docx: 'docx',
+      pptx: 'pptx',
+    };
+    const endpoint = formatMap[format] || 'pdf';
+    
+    const response = await fetch(`${this.baseURL}/proposal/export/${endpoint}?proposal_id=${proposalId}`, {
+      method: 'GET',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Export failed' }));
+      throw new Error(error.detail || 'Export failed');
+    }
+
+    return response.blob();
+  }
+}
+
+export const apiClient = new ApiClient(API_BASE_URL);

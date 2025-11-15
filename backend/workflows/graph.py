@@ -15,6 +15,7 @@ from workflows.agents import (
 
 def rfp_analyzer_node(state: WorkflowState) -> Dict[str, Any]:
     """RFP Analyzer Agent node."""
+    print(f"  [RFP Analyzer] Starting...")
     updates = {"current_step": "rfp_analyzer"}
     
     try:
@@ -24,6 +25,8 @@ def rfp_analyzer_node(state: WorkflowState) -> Dict[str, Any]:
             # Try to get from state context (passed from workflow manager)
             rfp_text = state.get("rfp_text", "")
         
+        print(f"  [RFP Analyzer] RFP text length: {len(rfp_text) if rfp_text else 0}")
+        
         # Run analyzer
         result = rfp_analyzer_agent.analyze(
             rfp_text=rfp_text,
@@ -31,9 +34,13 @@ def rfp_analyzer_node(state: WorkflowState) -> Dict[str, Any]:
             project_id=state["project_id"]
         )
         
+        print(f"  [RFP Analyzer] Result: {list(result.keys()) if result else 'None'}")
+        
         if result.get("error"):
+            print(f"  [RFP Analyzer] ❌ Error: {result['error']}")
             updates["errors"] = [f"RFP Analyzer: {result['error']}"]
         else:
+            print(f"  [RFP Analyzer] ✓ Success - Summary: {len(str(result.get('rfp_summary', ''))) if result.get('rfp_summary') else 0} chars")
             updates.update({
                 "rfp_summary": result.get("rfp_summary"),
                 "context_overview": result.get("context_overview"),
@@ -46,6 +53,9 @@ def rfp_analyzer_node(state: WorkflowState) -> Dict[str, Any]:
                 }]
             })
     except Exception as e:
+        print(f"  [RFP Analyzer] ❌ Exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
         updates["errors"] = [f"RFP Analyzer error: {str(e)}"]
         updates["execution_log"] = [{
             "step": "rfp_analyzer",
@@ -57,26 +67,39 @@ def rfp_analyzer_node(state: WorkflowState) -> Dict[str, Any]:
 
 def challenge_extractor_node(state: WorkflowState) -> Dict[str, Any]:
     """Challenge Extractor Agent node."""
+    print(f"  [Challenge Extractor] Starting...")
     updates = {"current_step": "challenge_extractor"}
     
     try:
+        rfp_summary = state.get("rfp_summary", "")
+        business_objectives = state.get("business_objectives", [])
+        print(f"  [Challenge Extractor] RFP Summary: {len(rfp_summary) if rfp_summary else 0} chars, Objectives: {len(business_objectives) if business_objectives else 0}")
+        
         result = challenge_extractor_agent.extract_challenges(
-            rfp_summary=state.get("rfp_summary", ""),
-            business_objectives=state.get("business_objectives", [])
+            rfp_summary=rfp_summary,
+            business_objectives=business_objectives
         )
         
+        print(f"  [Challenge Extractor] Result: {list(result.keys()) if result else 'None'}")
+        
         if result.get("error"):
+            print(f"  [Challenge Extractor] ❌ Error: {result['error']}")
             updates["errors"] = [f"Challenge Extractor: {result['error']}"]
         else:
+            challenges = result.get("challenges", [])
+            print(f"  [Challenge Extractor] ✓ Success - Challenges: {len(challenges) if challenges else 0}")
             updates.update({
-                "challenges": result.get("challenges", []),
+                "challenges": challenges,
                 "execution_log": [{
                     "step": "challenge_extractor",
                     "status": "success",
-                    "challenges_count": len(result.get("challenges", []))
+                    "challenges_count": len(challenges) if challenges else 0
                 }]
             })
     except Exception as e:
+        print(f"  [Challenge Extractor] ❌ Exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
         updates["errors"] = [f"Challenge Extractor error: {str(e)}"]
         updates["execution_log"] = [{
             "step": "challenge_extractor",
@@ -88,25 +111,38 @@ def challenge_extractor_node(state: WorkflowState) -> Dict[str, Any]:
 
 def discovery_question_node(state: WorkflowState) -> Dict[str, Any]:
     """Discovery Question Agent node."""
-    updates = {"current_step": "discovery_question"}
+    print(f"  [Discovery Question] Starting...")
+    updates = {}
     
     try:
+        challenges = state.get("challenges", [])
+        print(f"  [Discovery Question] Challenges available: {len(challenges) if challenges else 0}")
+        
         result = discovery_question_agent.generate_questions(
-            challenges=state.get("challenges", [])
+            challenges=challenges
         )
         
+        print(f"  [Discovery Question] Result: {list(result.keys()) if result else 'None'}")
+        
         if result.get("error"):
+            print(f"  [Discovery Question] ❌ Error: {result['error']}")
             updates["errors"] = [f"Discovery Question: {result['error']}"]
         else:
+            questions = result.get("discovery_questions", {})
+            questions_count = sum(len(q) for q in questions.values()) if questions else 0
+            print(f"  [Discovery Question] ✓ Success - Questions generated: {questions_count}")
             updates.update({
-                "discovery_questions": result.get("discovery_questions", {}),
+                "discovery_questions": questions,
                 "execution_log": [{
                     "step": "discovery_question",
                     "status": "success",
-                    "questions_count": sum(len(q) for q in result.get("discovery_questions", {}).values())
+                    "questions_count": questions_count
                 }]
             })
     except Exception as e:
+        print(f"  [Discovery Question] ❌ Exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
         updates["errors"] = [f"Discovery Question error: {str(e)}"]
         updates["execution_log"] = [{
             "step": "discovery_question",
@@ -118,26 +154,39 @@ def discovery_question_node(state: WorkflowState) -> Dict[str, Any]:
 
 def value_proposition_node(state: WorkflowState) -> Dict[str, Any]:
     """Value Proposition Agent node."""
-    updates = {"current_step": "value_proposition"}
+    print(f"  [Value Proposition] Starting...")
+    updates = {}
     
     try:
+        challenges = state.get("challenges", [])
+        rfp_summary = state.get("rfp_summary", "")
+        print(f"  [Value Proposition] Challenges: {len(challenges) if challenges else 0}, RFP Summary: {len(rfp_summary) if rfp_summary else 0} chars")
+        
         result = value_proposition_agent.generate_value_propositions(
-            challenges=state.get("challenges", []),
-            rfp_summary=state.get("rfp_summary")
+            challenges=challenges,
+            rfp_summary=rfp_summary
         )
         
+        print(f"  [Value Proposition] Result: {list(result.keys()) if result else 'None'}")
+        
         if result.get("error"):
+            print(f"  [Value Proposition] ❌ Error: {result['error']}")
             updates["errors"] = [f"Value Proposition: {result['error']}"]
         else:
+            value_props = result.get("value_propositions", [])
+            print(f"  [Value Proposition] ✓ Success - Value propositions: {len(value_props) if value_props else 0}")
             updates.update({
-                "value_propositions": result.get("value_propositions", []),
+                "value_propositions": value_props,
                 "execution_log": [{
                     "step": "value_proposition",
                     "status": "success",
-                    "value_props_count": len(result.get("value_propositions", []))
+                    "value_props_count": len(value_props) if value_props else 0
                 }]
             })
     except Exception as e:
+        print(f"  [Value Proposition] ❌ Exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
         updates["errors"] = [f"Value Proposition error: {str(e)}"]
         updates["execution_log"] = [{
             "step": "value_proposition",
@@ -149,33 +198,45 @@ def value_proposition_node(state: WorkflowState) -> Dict[str, Any]:
 
 def case_study_matcher_node(state: WorkflowState) -> Dict[str, Any]:
     """Case Study Matcher Agent node."""
-    updates = {"current_step": "case_study_matcher"}
+    print(f"  [Case Study Matcher] Starting...")
+    updates = {}
     
     try:
+        challenges = state.get("challenges", [])
+        print(f"  [Case Study Matcher] Challenges available: {len(challenges) if challenges else 0}")
+        
         # Get db from state if available, otherwise create new session
         from db.database import SessionLocal
         db = SessionLocal()
         try:
             result = case_study_matcher_agent.match_case_studies(
-                challenges=state.get("challenges", []),
+                challenges=challenges,
                 db=db,
                 top_k=3
             )
             
+            print(f"  [Case Study Matcher] Result: {list(result.keys()) if result else 'None'}")
+            
             if result.get("error"):
+                print(f"  [Case Study Matcher] ❌ Error: {result['error']}")
                 updates["errors"] = [f"Case Study Matcher: {result['error']}"]
             else:
+                case_studies = result.get("matching_case_studies", [])
+                print(f"  [Case Study Matcher] ✓ Success - Case studies matched: {len(case_studies) if case_studies else 0}")
                 updates.update({
-                    "matching_case_studies": result.get("matching_case_studies", []),
+                    "matching_case_studies": case_studies,
                     "execution_log": [{
                         "step": "case_study_matcher",
                         "status": "success",
-                        "case_studies_count": len(result.get("matching_case_studies", []))
+                        "case_studies_count": len(case_studies) if case_studies else 0
                     }]
                 })
         finally:
             db.close()
     except Exception as e:
+        print(f"  [Case Study Matcher] ❌ Exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
         updates["errors"] = [f"Case Study Matcher error: {str(e)}"]
         updates["execution_log"] = [{
             "step": "case_study_matcher",
@@ -187,21 +248,38 @@ def case_study_matcher_node(state: WorkflowState) -> Dict[str, Any]:
 
 def proposal_builder_node(state: WorkflowState) -> Dict[str, Any]:
     """Proposal Builder Agent node."""
+    print(f"  [Proposal Builder] Starting...")
+    # This runs sequentially after parallel nodes, so it's safe to update current_step
     updates = {"current_step": "proposal_builder"}
     
     try:
+        rfp_summary = state.get("rfp_summary", "")
+        challenges = state.get("challenges", [])
+        value_propositions = state.get("value_propositions", [])
+        case_studies = state.get("matching_case_studies", [])
+        
+        print(f"  [Proposal Builder] Inputs - Summary: {len(rfp_summary) if rfp_summary else 0} chars, "
+              f"Challenges: {len(challenges) if challenges else 0}, "
+              f"Value Props: {len(value_propositions) if value_propositions else 0}, "
+              f"Case Studies: {len(case_studies) if case_studies else 0}")
+        
         result = proposal_builder_agent.build_proposal(
-            rfp_summary=state.get("rfp_summary", ""),
-            challenges=state.get("challenges", []),
-            value_propositions=state.get("value_propositions", []),
-            case_studies=state.get("matching_case_studies", [])
+            rfp_summary=rfp_summary,
+            challenges=challenges,
+            value_propositions=value_propositions,
+            case_studies=case_studies
         )
         
+        print(f"  [Proposal Builder] Result: {list(result.keys()) if result else 'None'}")
+        
         if result.get("error"):
+            print(f"  [Proposal Builder] ❌ Error: {result['error']}")
             updates["errors"] = [f"Proposal Builder: {result['error']}"]
         else:
+            proposal_draft = result.get("proposal_draft")
+            print(f"  [Proposal Builder] ✓ Success - Proposal draft: {'Created' if proposal_draft else 'Not created'}")
             updates.update({
-                "proposal_draft": result.get("proposal_draft"),
+                "proposal_draft": proposal_draft,
                 "execution_log": [{
                     "step": "proposal_builder",
                     "status": "success",
@@ -209,6 +287,9 @@ def proposal_builder_node(state: WorkflowState) -> Dict[str, Any]:
                 }]
             })
     except Exception as e:
+        print(f"  [Proposal Builder] ❌ Exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
         updates["errors"] = [f"Proposal Builder error: {str(e)}"]
         updates["execution_log"] = [{
             "step": "proposal_builder",

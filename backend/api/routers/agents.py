@@ -34,37 +34,101 @@ async def run_all_agents(
     5. Case Study Matcher
     6. Proposal Builder
     """
+    import sys
+    import traceback
+    
+    try:
+        # Force immediate output
+        sys.stdout.flush()
+        sys.stderr.flush()
+        
+        print("\n" + "="*60, file=sys.stderr, flush=True)
+        print("🔥 ENDPOINT CALLED: /agents/run-all", file=sys.stderr, flush=True)
+        print("="*60, file=sys.stderr, flush=True)
+        
+        print(f"\n{'='*60}", flush=True)
+        print(f"RUNNING AGENTS WORKFLOW", flush=True)
+        print(f"Project ID: {request.project_id}", flush=True)
+        print(f"RFP Document ID: {request.rfp_document_id}", flush=True)
+        print(f"User ID: {current_user.id}", flush=True)
+        print(f"User Email: {current_user.email}", flush=True)
+        print(f"{'='*60}\n", flush=True)
+    except Exception as e:
+        print(f"ERROR in initial logging: {e}", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
+    
     # Verify project ownership
+    print(f"Checking project ownership: project_id={request.project_id}, user_id={current_user.id}")
     project = db.query(Project).filter(
         Project.id == request.project_id,
         Project.owner_id == current_user.id
     ).first()
     
     if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found"
-        )
+        # Check if project exists but belongs to different user
+        project_exists = db.query(Project).filter(
+            Project.id == request.project_id
+        ).first()
+        
+        if project_exists:
+            print(f"❌ Project {request.project_id} exists but belongs to user {project_exists.owner_id}, not {current_user.id}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied: Project {request.project_id} does not belong to user {current_user.id}"
+            )
+        else:
+            print(f"❌ Project {request.project_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Project not found: {request.project_id}"
+            )
+    
+    print(f"✓ Project {request.project_id} ownership verified")
     
     # Verify RFP document belongs to project
+    print(f"Checking RFP document: rfp_document_id={request.rfp_document_id}, project_id={request.project_id}")
     rfp_doc = db.query(RFPDocument).filter(
         RFPDocument.id == request.rfp_document_id,
         RFPDocument.project_id == request.project_id
     ).first()
     
     if not rfp_doc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="RFP document not found"
-        )
+        # Check if RFP document exists but belongs to different project
+        rfp_exists = db.query(RFPDocument).filter(
+            RFPDocument.id == request.rfp_document_id
+        ).first()
+        
+        if rfp_exists:
+            print(f"❌ RFP document {request.rfp_document_id} exists but belongs to project {rfp_exists.project_id}, not {request.project_id}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied: RFP document {request.rfp_document_id} belongs to project {rfp_exists.project_id}, not {request.project_id}"
+            )
+        else:
+            print(f"❌ RFP document {request.rfp_document_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"RFP document not found: {request.rfp_document_id}"
+            )
+    
+    print(f"✓ RFP document {request.rfp_document_id} verified")
     
     # Run workflow
+    print(f"🚀 Starting workflow execution...")
     result = workflow_manager.run_workflow(
         project_id=request.project_id,
         rfp_document_id=request.rfp_document_id,
         db=db
     )
     
+    if not result.get("success"):
+        print(f"❌ Workflow failed: {result.get('error')}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Workflow execution failed: {result.get('error')}"
+        )
+    
+    print(f"✓ Workflow completed successfully")
     return RunWorkflowResponse(**result)
 
 @router.post("/get-state", response_model=GetStateResponse)
