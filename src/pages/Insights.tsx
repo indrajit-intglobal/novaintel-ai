@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Download, FileText, MessageSquare, Send, Sparkles, CheckCircle2, Loader2, Plus, Eye, Check } from "lucide-react";
+import { FileText, MessageSquare, Send, Sparkles, CheckCircle2, Loader2, Plus, Eye, Check } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useSearchParams, useNavigate } from "react-router-dom";
@@ -93,6 +93,18 @@ export default function Insights() {
   const handleSendMessage = async () => {
     if (!chatMessage.trim() || !projectId || isSending) return;
 
+    // Check RAG status before sending message
+    try {
+      const ragStatus = await apiClient.getRagStatus(projectId);
+      if (!ragStatus.ready) {
+        toast.error("RAG index not ready. Please wait for insights to be generated.");
+        return;
+      }
+    } catch (error: any) {
+      console.warn("Could not check RAG status:", error);
+      // Continue anyway as the chat endpoint will handle this
+    }
+
     const userMessage = chatMessage.trim();
     setChatMessage("");
     setChatHistory(prev => [...prev, { role: "user", content: userMessage }]);
@@ -100,10 +112,21 @@ export default function Insights() {
 
     try {
       const response = await apiClient.chatWithRFP(projectId, userMessage, chatHistory);
-      const assistantMessage = response.response || response.answer || "Sorry, I couldn't process that request.";
-      // console.log(response);
+      
+      // Check if there was an error in the response
+      if (!response.success && response.error) {
+        toast.error(response.error);
+        setChatHistory(prev => prev.slice(0, -1));
+        setIsSending(false);
+        return;
+      }
+      
+      // Backend returns 'answer' field
+      const assistantMessage = response.answer || response.response || "Sorry, I couldn't process that request.";
+      
       setChatHistory(prev => [...prev, { role: "assistant", content: assistantMessage }]);
     } catch (error: any) {
+      console.error("Chat error:", error);
       toast.error(error.message || "Failed to send message");
       setChatHistory(prev => prev.slice(0, -1));
     } finally {
@@ -319,10 +342,6 @@ export default function Insights() {
             <p className="text-muted-foreground">Project ID: {projectId}</p>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline">
-              <Download className="mr-2 h-4 w-4" />
-              Export
-            </Button>
             <Button 
               variant="outline"
               onClick={async () => {
@@ -554,7 +573,7 @@ export default function Insights() {
               <TabsContent value="cases" className="mt-6">
                 <div className="mb-4 flex items-center justify-between">
                   <h2 className="font-heading text-xl font-semibold">Case Studies</h2>
-                  <Dialog open={showAddCaseStudy} onOpenChange={setShowAddCaseStudy}>
+                  {/* <Dialog open={showAddCaseStudy} onOpenChange={setShowAddCaseStudy}>
                     <DialogTrigger asChild>
                       <Button size="sm">
                         <Plus className="mr-2 h-4 w-4" />
@@ -615,7 +634,7 @@ export default function Insights() {
                         </Button>
                       </div>
                     </DialogContent>
-                  </Dialog>
+                  </Dialog> */}
                 </div>
                 {matchingCaseStudies.length > 0 ? (
                   matchingCaseStudies.map((caseStudy: any, index: number) => {

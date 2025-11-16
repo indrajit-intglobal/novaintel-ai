@@ -47,3 +47,10 @@ class UserSettingsResponse(BaseModel):
     auto_save_insights: bool
     theme_preference: str
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+

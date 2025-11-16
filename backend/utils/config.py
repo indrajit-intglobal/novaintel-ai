@@ -87,6 +87,14 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:8080,http://localhost:5173,http://127.0.0.1:8080"
     ALLOWED_HOSTS: str = "*"  # Comma-separated string in .env
     
+    # Database Pool Controls (PgBouncer-friendly)
+    DB_POOL_SIZE: int = 5               # keep low to avoid hitting PgBouncer pool
+    DB_MAX_OVERFLOW: int = 0            # avoid burst connections
+    DB_POOL_TIMEOUT: int = 30           # seconds to wait for a pool connection
+    DB_POOL_RECYCLE: int = 1800         # recycle connections every 30 min
+    DB_USE_NULLPOOL: bool = False       # set true to delegate pooling to PgBouncer
+    DB_CONNECT_TIMEOUT: int = 5         # seconds for TCP connect timeout
+    
     @property
     def cors_origins_list(self) -> List[str]:
         """Parse CORS origins from comma-separated string."""

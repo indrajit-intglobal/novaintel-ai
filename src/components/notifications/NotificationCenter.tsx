@@ -19,7 +19,10 @@ interface Notification {
   message: string;
   status: "pending" | "processing" | "completed" | "failed";
   created_at: string;
-  read: boolean;
+  updated_at?: string;
+  read_at?: string | null;
+  is_read: boolean;
+  metadata?: Record<string, any> | null;
 }
 
 export function NotificationCenter() {
@@ -40,7 +43,7 @@ export function NotificationCenter() {
     }
   }, [fetchedNotifications]);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter(n => !n.is_read).length;
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -74,7 +77,7 @@ export function NotificationCenter() {
   const markAsRead = async (id: number) => {
     try {
       await apiClient.markNotificationAsRead(id);
-      setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n));
+      setNotifications(notifications.map(n => n.id === id ? { ...n, is_read: true } : n));
     } catch (error) {
       console.error("Failed to mark notification as read:", error);
     }
@@ -83,7 +86,7 @@ export function NotificationCenter() {
   const markAllAsRead = async () => {
     try {
       await apiClient.markAllNotificationsAsRead();
-      setNotifications(notifications.map(n => ({ ...n, read: true })));
+      setNotifications(notifications.map(n => ({ ...n, is_read: true })));
     } catch (error) {
       console.error("Failed to mark all as read:", error);
     }
@@ -127,7 +130,7 @@ export function NotificationCenter() {
                 <div
                   key={notification.id}
                   className={`p-4 hover:bg-muted/50 transition-colors cursor-pointer ${
-                    !notification.read ? "bg-muted/30" : ""
+                    !notification.is_read ? "bg-muted/30" : ""
                   }`}
                   onClick={() => markAsRead(notification.id)}
                 >

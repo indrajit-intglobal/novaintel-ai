@@ -10,6 +10,8 @@ import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import EmailVerification from "./pages/EmailVerification";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import NewProject from "./pages/NewProject";
 import Insights from "./pages/Insights";
@@ -53,6 +55,8 @@ const App = () => (
               } 
             />
             <Route path="/verify-email" element={<EmailVerification />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route 
               path="/dashboard" 
               element={

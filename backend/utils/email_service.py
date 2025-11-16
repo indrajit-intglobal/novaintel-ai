@@ -47,3 +47,32 @@ async def send_verification_email(email: str, verification_token: str):
     fm = FastMail(conf)
     await fm.send_message(message)
 
+async def send_password_reset_email(email: str, reset_token: str):
+    """Send password reset link via Google SMTP."""
+    if not settings.mail_username or not settings.mail_password:
+        print(f"⚠ Email not configured. Reset link: {settings.FRONTEND_URL}/reset-password?token={reset_token}")
+        return
+    
+    reset_url = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
+    
+    message = MessageSchema(
+        subject="Reset your NovaIntel password",
+        recipients=[email],
+        body=f"""
+        <html>
+        <body>
+            <h2>Password Reset Request</h2>
+            <p>You requested to reset your password. Click the link below to set a new password:</p>
+            <p><a href="{reset_url}">Reset Password</a></p>
+            <p>Or copy this link: {reset_url}</p>
+            <p>This link will expire in 7 days.</p>
+            <p>If you didn't request this, please ignore this email.</p>
+        </body>
+        </html>
+        """,
+        subtype="html"
+    )
+    
+    fm = FastMail(conf)
+    await fm.send_message(message)
+

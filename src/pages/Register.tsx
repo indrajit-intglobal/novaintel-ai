@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { ArrowRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { PasswordStrengthIndicator, validatePasswordStrength } from "@/components/PasswordStrengthIndicator";
 
 export default function Register() {
   const [fullName, setFullName] = useState("");
@@ -44,8 +45,10 @@ export default function Register() {
       return;
     }
 
-    if (password.length < 6) {
-      toast.error("Password must be at least 6 characters");
+    // Validate password strength
+    const validation = validatePasswordStrength(password);
+    if (!validation.isValid) {
+      toast.error(validation.message || "Password does not meet security requirements");
       return;
     }
 
@@ -124,6 +127,7 @@ export default function Register() {
               required
               disabled={isLoading}
             />
+            <PasswordStrengthIndicator password={password} />
           </div>
 
           <div className="space-y-2">

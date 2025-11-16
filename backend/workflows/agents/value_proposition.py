@@ -2,7 +2,7 @@
 Value Proposition Agent - Creates value propositions mapped to challenges.
 """
 from typing import Dict, Any, List
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from utils.config import settings
 from utils.llm_factory import get_llm
 

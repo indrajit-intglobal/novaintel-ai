@@ -18,47 +18,67 @@ class GeminiLangChainWrapper(Runnable):
     def invoke(self, input: Any, config: Optional[dict] = None) -> 'GeminiResponse':
         """Invoke the LLM with a prompt."""
         prompt_input = input
+        
         # Handle LangChain ChatPromptValue format
         if hasattr(prompt_input, 'messages'):
             # LangChain ChatPromptTemplate result
-            messages = prompt_input.messages
-            formatted_messages = []
-            system_instruction = None
-            
-            for msg in messages:
-                # Extract content and role from LangChain message
-                if hasattr(msg, 'content'):
-                    content = msg.content
+            try:
+                messages = prompt_input.messages
+                formatted_messages = []
+                system_instruction = None
+                
+                for msg in messages:
+                    # Extract content and role from LangChain message
+                    if hasattr(msg, 'content'):
+                        content = msg.content
+                    elif isinstance(msg, str):
+                        content = msg
+                    else:
+                        content = str(msg)
+                    
+                    # Determine role
+                    role = "user"
+                    if hasattr(msg, 'type'):
+                        msg_type = msg.type
+                        if msg_type == "system":
+                            system_instruction = content
+                            continue
+                        elif msg_type == "ai" or msg_type == "assistant":
+                            role = "assistant"
+                        else:
+                            role = "user"
+                    elif hasattr(msg, 'role'):
+                        msg_role = msg.role
+                        if msg_role == "system":
+                            system_instruction = content
+                            continue
+                        elif msg_role == "assistant" or msg_role == "ai":
+                            role = "assistant"
+                        else:
+                            role = "user"
+                    
+                    formatted_messages.append({
+                        "role": role,
+                        "content": content
+                    })
+                
+                # Use chat if we have messages, otherwise use generate_content
+                if formatted_messages:
+                    # If we have system instruction, add it as a system message at the beginning
+                    if system_instruction:
+                        formatted_messages.insert(0, {
+                            "role": "system",
+                            "content": system_instruction
+                        })
+                    result = self.service.chat(formatted_messages, temperature=self.temperature)
                 else:
-                    content = str(msg)
-                
-                # Determine role
-                role = "user"
-                if hasattr(msg, 'type'):
-                    msg_type = msg.type
-                    if msg_type == "system":
-                        system_instruction = content
-                        continue
-                    elif msg_type == "ai" or msg_type == "assistant":
-                        role = "assistant"
-                    else:
-                        role = "user"
-                elif hasattr(msg, 'role'):
-                    msg_role = msg.role
-                    if msg_role == "system":
-                        system_instruction = content
-                        continue
-                    elif msg_role == "assistant" or msg_role == "ai":
-                        role = "assistant"
-                    else:
-                        role = "user"
-                
-                formatted_messages.append({
-                    "role": role,
-                    "content": content
-                })
-            
-            result = self.service.chat(formatted_messages, temperature=self.temperature)
+                    # Fallback to generate_content
+                    prompt_text = system_instruction or ""
+                    result = self.service.generate_content(prompt_text, temperature=self.temperature)
+            except Exception as e:
+                # If message parsing fails, try to convert to string
+                prompt_text = str(prompt_input)
+                result = self.service.generate_content(prompt_text, temperature=self.temperature)
         
         # Handle dict format
         elif isinstance(prompt_input, dict):

@@ -125,7 +125,7 @@ async def update_project(
     
     return project
 
-@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{project_id}")
 async def delete_project(
     project_id: int,
     db: Session = Depends(get_db),
@@ -146,7 +146,7 @@ async def delete_project(
     db.delete(project)
     db.commit()
     
-    return None
+    return {"message": "Project deleted successfully"}
 
 @router.post("/{project_id}/publish-case-study")
 async def publish_project_as_case_study(
@@ -327,6 +327,6 @@ def _update_notification(
         notification.status = status
         notification.message = message
         if metadata:
-            notification.metadata = {**(notification.metadata or {}), **metadata}
+            notification.metadata_ = {**(notification.metadata_ or {}), **metadata}
         db.commit()
 

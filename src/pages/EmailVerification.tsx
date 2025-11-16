@@ -3,6 +3,7 @@ import { useSearchParams, Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Mail } from "lucide-react";
+import { apiClient } from "@/lib/api";
 
 export default function EmailVerification() {
   const [searchParams] = useSearchParams();
@@ -11,13 +12,29 @@ export default function EmailVerification() {
   const type = searchParams.get("type");
 
   useEffect(() => {
-    // If there's a token in the URL, this is a redirect from email
-    // In a real app, you might want to verify this token with your backend
-    if (token) {
-      // Token verification would happen here
-      // For now, just show success message
-      setStatus("success");
-    }
+    const verifyEmail = async () => {
+      if (!token) {
+        setStatus("error");
+        return;
+      }
+
+      try {
+        // Call backend API to verify the token
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+        const response = await fetch(`${API_BASE_URL}/auth/verify-email/${token}`);
+        
+        if (response.ok) {
+          setStatus("success");
+        } else {
+          setStatus("error");
+        }
+      } catch (error) {
+        console.error("Email verification failed:", error);
+        setStatus("error");
+      }
+    };
+
+    verifyEmail();
   }, [token]);
 
   return (

@@ -82,6 +82,15 @@ export default function Dashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       toast.success("Project deleted successfully");
+      
+      // Reset to page 1 if current page becomes empty after deletion
+      const remainingProjects = projects.length - 1;
+      const maxPages = Math.ceil(remainingProjects / itemsPerPage);
+      if (currentPage > maxPages && maxPages > 0) {
+        setCurrentPage(maxPages);
+      } else if (remainingProjects === 0) {
+        setCurrentPage(1);
+      }
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to delete project");
@@ -186,6 +195,23 @@ export default function Dashboard() {
         return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-hero">
+        <div className="text-center">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-primary animate-pulse">
+            <span className="text-3xl font-bold text-primary-foreground">N</span>
+          </div>
+          <div className="mb-4 flex items-center justify-center gap-2">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+          <h2 className="mb-2 font-heading text-xl font-semibold">Loading Dashboard</h2>
+          <p className="text-sm text-muted-foreground">Please wait while we fetch your data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <DashboardLayout>

@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -464,10 +465,10 @@ export default function CaseStudies() {
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
                   </div>
-                  <Button className="bg-gradient-primary" onClick={handleOpenCreate}>
+                  {/* <Button className="bg-gradient-primary" onClick={handleOpenCreate}>
                     <Plus className="mr-2 h-4 w-4" />
                     Add Case Study
-                  </Button>
+                  </Button> */}
                 </div>
               </div>
 
@@ -694,7 +695,7 @@ export default function CaseStudies() {
 
         {/* View Case Study Dialog */}
         <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-          <DialogContent className="sm:max-w-[700px]">
+          <DialogContent className="sm:max-w-[700px] max-h-[90vh]">
             <DialogHeader>
               <DialogTitle>Case Study Details</DialogTitle>
               <DialogDescription>
@@ -704,59 +705,61 @@ export default function CaseStudies() {
             {isLoadingDetail && !selectedCaseStudy ? (
               <div className="py-8 text-center text-muted-foreground">Loading...</div>
             ) : (
-              <div className="space-y-4 py-4">
-                {(caseStudyDetail || selectedCaseStudy) && (
-                  <>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Title</Label>
-                      <p className="text-sm">{caseStudyDetail?.title || selectedCaseStudy?.title || "N/A"}</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Industry</Label>
-                      <Badge variant="secondary" className="bg-primary/10 text-primary">
-                        {caseStudyDetail?.industry || selectedCaseStudy?.industry || "N/A"}
-                      </Badge>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Impact</Label>
-                      <div className="rounded-lg bg-primary/5 p-3">
-                        <p className="text-sm font-semibold text-primary">
-                          {caseStudyDetail?.impact || selectedCaseStudy?.impact || "N/A"}
-                        </p>
-                      </div>
-                    </div>
-                    {(caseStudyDetail?.description || selectedCaseStudy?.description) ? (
+              <ScrollArea className="h-[60vh] pr-4">
+                <div className="space-y-4 py-4">
+                  {(caseStudyDetail || selectedCaseStudy) && (
+                    <>
                       <div className="space-y-2">
-                        <Label className="text-sm font-semibold">Description</Label>
-                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                          {caseStudyDetail?.description || selectedCaseStudy?.description}
-                        </p>
+                        <Label className="text-sm font-semibold">Title</Label>
+                        <p className="text-sm">{caseStudyDetail?.title || selectedCaseStudy?.title || "N/A"}</p>
                       </div>
-                    ) : null}
-                    {(caseStudyDetail?.project_description || selectedCaseStudy?.project_description) ? (
                       <div className="space-y-2">
-                        <Label className="text-sm font-semibold">Project Description</Label>
-                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                          {caseStudyDetail?.project_description || selectedCaseStudy?.project_description}
+                        <Label className="text-sm font-semibold">Industry</Label>
+                        <Badge variant="secondary" className="bg-primary/10 text-primary">
+                          {caseStudyDetail?.industry || selectedCaseStudy?.industry || "N/A"}
+                        </Badge>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Impact</Label>
+                        <div className="rounded-lg bg-primary/5 p-3">
+                          <p className="text-sm font-semibold text-primary">
+                            {caseStudyDetail?.impact || selectedCaseStudy?.impact || "N/A"}
+                          </p>
+                        </div>
+                      </div>
+                      {(caseStudyDetail?.description || selectedCaseStudy?.description) ? (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Description</Label>
+                          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                            {caseStudyDetail?.description || selectedCaseStudy?.description}
+                          </p>
+                        </div>
+                      ) : null}
+                      {(caseStudyDetail?.project_description || selectedCaseStudy?.project_description) ? (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Project Description</Label>
+                          <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                            {caseStudyDetail?.project_description || selectedCaseStudy?.project_description}
+                          </p>
+                        </div>
+                      ) : null}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Created</Label>
+                        <p className="text-sm text-muted-foreground">
+                          {(caseStudyDetail?.created_at || selectedCaseStudy?.created_at)
+                            ? new Date(caseStudyDetail?.created_at || selectedCaseStudy?.created_at).toLocaleDateString()
+                            : "N/A"}
                         </p>
                       </div>
-                    ) : null}
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Created</Label>
-                      <p className="text-sm text-muted-foreground">
-                        {(caseStudyDetail?.created_at || selectedCaseStudy?.created_at)
-                          ? new Date(caseStudyDetail?.created_at || selectedCaseStudy?.created_at).toLocaleDateString()
-                          : "N/A"}
-                      </p>
+                    </>
+                  )}
+                  {!caseStudyDetail && !selectedCaseStudy && (
+                    <div className="py-8 text-center text-muted-foreground">
+                      {caseStudyDetailError ? "Failed to load case study details" : "No case study data available"}
                     </div>
-                  </>
-                )}
-                {!caseStudyDetail && !selectedCaseStudy && (
-                  <div className="py-8 text-center text-muted-foreground">
-                    {caseStudyDetailError ? "Failed to load case study details" : "No case study data available"}
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              </ScrollArea>
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsViewOpen(false)}>

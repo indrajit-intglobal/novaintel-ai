@@ -19,12 +19,14 @@ class NotificationResponse(BaseModel):
     title: str
     message: str
     status: str
-    read: bool
+    is_read: bool
     read_at: Optional[datetime]
-    metadata: Optional[Dict[str, Any]]
+    metadata: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
     
     class Config:
         from_attributes = True
+        # Allow access to both metadata and metadata_ attributes
+        populate_by_name = True
 

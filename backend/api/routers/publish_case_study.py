@@ -181,6 +181,6 @@ def _update_notification(
         notification.status = status
         notification.message = message
         if metadata:
-            notification.metadata = {**(notification.metadata or {}), **metadata}
+            notification.metadata_ = {**(notification.metadata_ or {}), **metadata}
         db.commit()
 

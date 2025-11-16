@@ -4,6 +4,7 @@ from models.rfp_document import RFPDocument
 from models.insights import Insights
 from models.proposal import Proposal
 from models.case_study import CaseStudy
+from models.notification import Notification
 
 __all__ = [
     "User",
@@ -14,5 +15,6 @@ __all__ = [
     "Insights",
     "Proposal",
     "CaseStudy",
+    "Notification",
 ]
 

@@ -26,7 +26,25 @@ async def get_notifications(
         Notification.user_id == current_user.id
     ).order_by(desc(Notification.created_at)).limit(limit).all()
     
-    return notifications
+    # Convert to response format
+    result = []
+    for notif in notifications:
+        notif_dict = {
+            "id": notif.id,
+            "user_id": notif.user_id,
+            "type": notif.type,
+            "title": notif.title,
+            "message": notif.message,
+            "status": notif.status,
+            "is_read": notif.is_read,
+            "read_at": notif.read_at,
+            "metadata": notif.metadata_,  # Use metadata_ attribute directly
+            "created_at": notif.created_at,
+            "updated_at": notif.updated_at,
+        }
+        result.append(NotificationResponse(**notif_dict))
+    
+    return result
 
 @router.put("/notifications/{notification_id}/read")
 async def mark_notification_as_read(
@@ -46,7 +64,7 @@ async def mark_notification_as_read(
             detail="Notification not found"
         )
     
-    notification.read = True
+    notification.is_read = True
     notification.read_at = now_ist()
     db.commit()
     
@@ -60,8 +78,8 @@ async def mark_all_notifications_as_read(
     """Mark all notifications as read for current user."""
     db.query(Notification).filter(
         Notification.user_id == current_user.id,
-        Notification.read == False
-    ).update({"read": True, "read_at": now_ist()})
+        Notification.is_read == False
+    ).update({"is_read": True, "read_at": now_ist()})
     db.commit()
     
     return {"message": "All notifications marked as read"}
@@ -79,12 +97,24 @@ async def create_notification(
         title=notification_data.title,
         message=notification_data.message,
         status=notification_data.status or "pending",
-        metadata=notification_data.metadata
+        metadata_=notification_data.metadata  # Use metadata_ attribute directly
     )
     
     db.add(notification)
     db.commit()
     db.refresh(notification)
     
-    return notification
+    return NotificationResponse(
+        id=notification.id,
+        user_id=notification.user_id,
+        type=notification.type,
+        title=notification.title,
+        message=notification.message,
+        status=notification.status,
+        is_read=notification.is_read,
+        read_at=notification.read_at,
+        metadata=notification.metadata_,  # Use metadata_ attribute directly
+        created_at=notification.created_at,
+        updated_at=notification.updated_at,
+    )
 
