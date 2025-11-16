@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
+import { formatIST } from "@/utils/timezone";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState } from "react";
 
@@ -56,7 +57,12 @@ export default function Dashboard() {
     region: "",
     project_type: "",
     description: "",
+    status: "",
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const itemsPerPage = 5;
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ["projects"],
@@ -64,6 +70,12 @@ export default function Dashboard() {
     enabled: isAuthenticated,
     retry: false,
   });
+
+  // Pagination logic
+  const totalPages = Math.ceil(projects.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedProjects = projects.slice(startIndex, endIndex);
 
   const deleteMutation = useMutation({
     mutationFn: (projectId: number) => apiClient.deleteProject(projectId),
@@ -99,8 +111,22 @@ export default function Dashboard() {
       region: project.region || "",
       project_type: project.project_type || "",
       description: project.description || "",
+      status: project.status || "Draft",
     });
     setIsEditDialogOpen(true);
+  };
+
+  const handleDeleteClick = (project: Project) => {
+    setProjectToDelete(project);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (projectToDelete) {
+      deleteMutation.mutate(projectToDelete.id);
+      setDeleteConfirmOpen(false);
+      setProjectToDelete(null);
+    }
   };
 
   const handleSaveEdit = () => {
@@ -120,11 +146,12 @@ export default function Dashboard() {
         region: editFormData.region,
         project_type: editFormData.project_type,
         description: editFormData.description || undefined,
+        status: editFormData.status || "Draft",
       },
     });
   };
 
-  const activeProjects = projects.filter((p) => p.status !== "completed").length;
+  const activeProjects = projects.filter((p) => p.status === "Active" || p.status === "Submitted").length;
   const topIndustry = projects.reduce((acc: Record<string, number>, project) => {
     acc[project.industry] = (acc[project.industry] || 0) + 1;
     return acc;
@@ -143,12 +170,18 @@ export default function Dashboard() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "In Progress":
+      case "Draft":
+        return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+      case "Active":
         return "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300";
-      case "Review":
+      case "Submitted":
         return "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300";
-      case "Completed":
+      case "Won":
         return "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300";
+      case "Lost":
+        return "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300";
+      case "Archived":
+        return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
       default:
         return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
     }
@@ -219,7 +252,7 @@ export default function Dashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {projects.map((project) => (
+                  {paginatedProjects.map((project) => (
                     <TableRow key={project.id}>
                       <TableCell className="font-medium">{project.name}</TableCell>
                       <TableCell>{project.client_name}</TableCell>
@@ -230,7 +263,7 @@ export default function Dashboard() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
+                        {formatIST(project.updated_at, "datetime")}
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -248,11 +281,7 @@ export default function Dashboard() {
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-destructive"
-                              onClick={() => {
-                                if (window.confirm("Are you sure you want to delete this project?")) {
-                                  deleteMutation.mutate(project.id);
-                                }
-                              }}
+                              onClick={() => handleDeleteClick(project)}
                             >
                               <Trash2 className="mr-2 h-4 w-4" /> Delete
                             </DropdownMenuItem>
@@ -263,6 +292,46 @@ export default function Dashboard() {
                   ))}
                 </TableBody>
               </Table>
+            )}
+            
+            {/* Pagination Controls */}
+            {projects.length > itemsPerPage && (
+              <div className="mt-6 flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Showing {startIndex + 1} to {Math.min(endIndex, projects.length)} of {projects.length} projects
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <Button
+                        key={page}
+                        variant={currentPage === page ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(page)}
+                        className="w-8"
+                      >
+                        {page}
+                      </Button>
+                    ))}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
         </Card>
@@ -364,6 +433,25 @@ export default function Dashboard() {
                 </Select>
               </div>
               <div className="space-y-2">
+                <Label htmlFor="edit-status">Status *</Label>
+                <Select
+                  value={editFormData.status}
+                  onValueChange={(value) => setEditFormData({ ...editFormData, status: value })}
+                >
+                  <SelectTrigger className="bg-background/50">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Draft">Draft</SelectItem>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Submitted">Submitted</SelectItem>
+                    <SelectItem value="Won">Won</SelectItem>
+                    <SelectItem value="Lost">Lost</SelectItem>
+                    <SelectItem value="Archived">Archived</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="edit-description">Description</Label>
                 <Textarea
                   id="edit-description"
@@ -391,6 +479,30 @@ export default function Dashboard() {
                 ) : (
                   "Update Project"
                 )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Project</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete "{projectToDelete?.name}"? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteConfirm}
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending ? "Deleting..." : "Delete"}
               </Button>
             </DialogFooter>
           </DialogContent>

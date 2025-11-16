@@ -13,6 +13,7 @@ class WorkflowState(TypedDict):
     rfp_document_id: int
     rfp_text: Optional[str]
     retrieved_context: Optional[str]
+    selected_tasks: Optional[Dict[str, bool]]  # {challenges: bool, questions: bool, cases: bool, proposal: bool}
     
     # RFP Analyzer Output
     rfp_summary: Optional[str]
@@ -45,14 +46,25 @@ def create_initial_state(
     project_id: int,
     rfp_document_id: int,
     rfp_text: Optional[str] = None,
-    retrieved_context: Optional[str] = None
+    retrieved_context: Optional[str] = None,
+    selected_tasks: Optional[Dict[str, bool]] = None
 ) -> WorkflowState:
     """Create initial workflow state."""
+    # Default to all tasks enabled if not specified
+    if selected_tasks is None:
+        selected_tasks = {
+            "challenges": True,
+            "questions": True,
+            "cases": True,
+            "proposal": True
+        }
+    
     return {
         "project_id": project_id,
         "rfp_document_id": rfp_document_id,
         "rfp_text": rfp_text,
         "retrieved_context": retrieved_context,
+        "selected_tasks": selected_tasks,
         "rfp_summary": None,
         "context_overview": None,
         "business_objectives": None,

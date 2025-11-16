@@ -9,6 +9,7 @@ class InsightsResponse(BaseModel):
     challenges: Optional[List[Dict]]
     value_propositions: Optional[List[str]]
     discovery_questions: Optional[Dict[str, List[str]]]
+    matching_case_studies: Optional[List[Dict]]
     tags: Optional[List[str]]
     ai_model_used: Optional[str]
     analysis_timestamp: Optional[datetime]

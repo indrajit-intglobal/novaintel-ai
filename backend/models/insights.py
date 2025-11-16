@@ -20,7 +20,10 @@ class Insights(Base):
     
     # Discovery questions (stored as JSON)
     discovery_questions = Column(JSON, nullable=True)  # {category: [questions]}
-    
+
+    # Case studies (stored as JSON array)
+    matching_case_studies = Column(JSON, nullable=True)  # List of case study objects
+
     # Tags/keywords
     tags = Column(JSON, nullable=True)  # List of tags
     

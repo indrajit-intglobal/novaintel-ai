@@ -15,8 +15,6 @@ import {
 const menuItems = [
   { name: "Dashboard", icon: LayoutDashboard, route: "/dashboard" },
   { name: "New Project", icon: PlusCircle, route: "/new-project" },
-  { name: "AI Insights", icon: Sparkles, route: "/insights" },
-  { name: "Proposal Builder", icon: FileText, route: "/proposal" },
   { name: "Case Studies", icon: FolderKanban, route: "/case-studies" },
   { name: "Settings", icon: Settings, route: "/settings" },
 ];

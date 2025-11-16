@@ -7,6 +7,7 @@ from typing import Optional, Dict, Any
 class RunWorkflowRequest(BaseModel):
     project_id: int
     rfp_document_id: int
+    selected_tasks: Optional[Dict[str, bool]] = None  # {challenges: bool, questions: bool, cases: bool, proposal: bool}
 
 class RunWorkflowResponse(BaseModel):
     success: bool

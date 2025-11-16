@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from starlette.middleware.base import BaseHTTPMiddleware
 import sys
 
-from api.routers import auth, projects, upload, insights, proposal, case_studies, rag, agents
+from api.routers import auth, projects, upload, insights, proposal, case_studies, rag, agents, case_study_documents, search, notifications
 from db.database import engine, Base
 from utils.config import settings
 
@@ -117,6 +117,9 @@ app.include_router(proposal.router, prefix="/proposal", tags=["Proposal"])
 app.include_router(case_studies.router, prefix="/case-studies", tags=["Case Studies"])
 app.include_router(rag.router, prefix="/rag", tags=["RAG"])
 app.include_router(agents.router, prefix="/agents", tags=["Multi-Agent Workflow"])
+app.include_router(case_study_documents.router, prefix="/case-study-documents", tags=["Case Study Documents"])
+app.include_router(search.router, prefix="", tags=["Search"])
+app.include_router(notifications.router, prefix="", tags=["Notifications"])
 
 @app.get("/")
 async def root():

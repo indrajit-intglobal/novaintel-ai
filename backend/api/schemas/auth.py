@@ -34,9 +34,16 @@ class UserUpdate(BaseModel):
     role: str | None = None
 
 class UserSettingsUpdate(BaseModel):
-    default_industry: str | None = None
     proposal_tone: str | None = None
     ai_response_style: str | None = None
     secure_mode: bool | None = None
     auto_save_insights: bool | None = None
+    theme_preference: str | None = None
+
+class UserSettingsResponse(BaseModel):
+    proposal_tone: str
+    ai_response_style: str
+    secure_mode: bool
+    auto_save_insights: bool
+    theme_preference: str
 

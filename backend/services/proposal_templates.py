@@ -135,6 +135,158 @@ class ProposalTemplates:
         }
     ]
     
+    EXCLUSIVE_TEMPLATE = [
+        {
+            "id": 1,
+            "title": "Executive Overview",
+            "content": "",
+            "order": 1,
+            "required": True
+        },
+        {
+            "id": 2,
+            "title": "Unique Value Proposition",
+            "content": "",
+            "order": 2,
+            "required": True
+        },
+        {
+            "id": 3,
+            "title": "Exclusive Solution Features",
+            "content": "",
+            "order": 3,
+            "required": True
+        },
+        {
+            "id": 4,
+            "title": "Competitive Advantages",
+            "content": "",
+            "order": 4,
+            "required": True
+        },
+        {
+            "id": 5,
+            "title": "Investment & ROI",
+            "content": "",
+            "order": 5,
+            "required": True
+        }
+    ]
+    
+    SHORT_PITCH_TEMPLATE = [
+        {
+            "id": 1,
+            "title": "The Challenge",
+            "content": "",
+            "order": 1,
+            "required": True
+        },
+        {
+            "id": 2,
+            "title": "Our Solution",
+            "content": "",
+            "order": 2,
+            "required": True
+        },
+        {
+            "id": 3,
+            "title": "Key Benefits",
+            "content": "",
+            "order": 3,
+            "required": True
+        },
+        {
+            "id": 4,
+            "title": "Next Steps",
+            "content": "",
+            "order": 4,
+            "required": True
+        }
+    ]
+    
+    EXECUTIVE_SUMMARY_TEMPLATE = [
+        {
+            "id": 1,
+            "title": "Executive Summary",
+            "content": "",
+            "order": 1,
+            "required": True
+        },
+        {
+            "id": 2,
+            "title": "Business Context",
+            "content": "",
+            "order": 2,
+            "required": True
+        },
+        {
+            "id": 3,
+            "title": "Proposed Solution Overview",
+            "content": "",
+            "order": 3,
+            "required": True
+        },
+        {
+            "id": 4,
+            "title": "Expected Outcomes",
+            "content": "",
+            "order": 4,
+            "required": True
+        },
+        {
+            "id": 5,
+            "title": "Recommendation",
+            "content": "",
+            "order": 5,
+            "required": True
+        }
+    ]
+    
+    TECHNICAL_APPENDIX_TEMPLATE = [
+        {
+            "id": 1,
+            "title": "Technical Architecture",
+            "content": "",
+            "order": 1,
+            "required": True
+        },
+        {
+            "id": 2,
+            "title": "System Requirements",
+            "content": "",
+            "order": 2,
+            "required": True
+        },
+        {
+            "id": 3,
+            "title": "Integration Details",
+            "content": "",
+            "order": 3,
+            "required": True
+        },
+        {
+            "id": 4,
+            "title": "Security & Compliance",
+            "content": "",
+            "order": 4,
+            "required": True
+        },
+        {
+            "id": 5,
+            "title": "Implementation Timeline",
+            "content": "",
+            "order": 5,
+            "required": True
+        },
+        {
+            "id": 6,
+            "title": "Technical Specifications",
+            "content": "",
+            "order": 6,
+            "required": False
+        }
+    ]
+    
     @classmethod
     def get_template(cls, template_type: str) -> List[Dict[str, Any]]:
         """
@@ -149,7 +301,11 @@ class ProposalTemplates:
         templates = {
             "executive": cls.EXECUTIVE_TEMPLATE,
             "full": cls.FULL_TEMPLATE,
-            "one-page": cls.ONE_PAGE_TEMPLATE
+            "one-page": cls.ONE_PAGE_TEMPLATE,
+            "exclusive": cls.EXCLUSIVE_TEMPLATE,
+            "short-pitch": cls.SHORT_PITCH_TEMPLATE,
+            "executive-summary": cls.EXECUTIVE_SUMMARY_TEMPLATE,
+            "technical-appendix": cls.TECHNICAL_APPENDIX_TEMPLATE
         }
         
         return templates.get(template_type.lower(), cls.FULL_TEMPLATE).copy()
@@ -159,7 +315,10 @@ class ProposalTemplates:
         cls,
         template_type: str,
         insights: Dict[str, Any],
-        use_ai: bool = True
+        use_ai: bool = True,
+        proposal_tone: str = "professional",
+        ai_response_style: str = "balanced",
+        secure_mode: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Populate template with insights data, optionally using AI for full content generation.
@@ -181,6 +340,16 @@ class ProposalTemplates:
             value_propositions = insights.get("value_propositions", [])
             case_studies = insights.get("matching_case_studies", [])
             
+            # Sanitize PII if secure mode is enabled
+            if secure_mode:
+                from utils.pii_sanitizer import PIISanitizer
+                insights = PIISanitizer.sanitize_insights(insights)
+                rfp_summary = PIISanitizer.sanitize_text(rfp_summary)
+                # Sanitize challenges, value_propositions, case_studies
+                challenges = PIISanitizer.sanitize_dict({"challenges": challenges}).get("challenges", challenges)
+                value_propositions = [PIISanitizer.sanitize_text(vp) if isinstance(vp, str) else vp for vp in value_propositions]
+                case_studies = PIISanitizer.sanitize_dict({"case_studies": case_studies}).get("case_studies", case_studies)
+            
             # Generate content for each section using AI
             for section in sections:
                 try:
@@ -189,7 +358,9 @@ class ProposalTemplates:
                         rfp_summary=rfp_summary,
                         challenges=challenges,
                         value_propositions=value_propositions,
-                        case_studies=case_studies
+                        case_studies=case_studies,
+                        proposal_tone=proposal_tone,
+                        ai_response_style=ai_response_style
                     )
                     section["content"] = section_content
                 except Exception as e:
@@ -253,7 +424,9 @@ class ProposalTemplates:
         rfp_summary: str,
         challenges: List[Dict[str, Any]],
         value_propositions: List[str],
-        case_studies: List[Dict[str, Any]]
+        case_studies: List[Dict[str, Any]],
+        proposal_tone: str = "professional",
+        ai_response_style: str = "balanced"
     ) -> str:
         """Generate section content using AI."""
         from langchain.prompts import ChatPromptTemplate
@@ -274,15 +447,36 @@ class ProposalTemplates:
                 for cs in case_studies[:5]
             ])
         
+        # Build tone instructions
+        tone_instructions = {
+            "professional": "Use a professional, formal tone. Be clear, concise, and business-focused.",
+            "friendly": "Use a warm, approachable tone. Be conversational while maintaining professionalism.",
+            "technical": "Use a technical, detailed tone. Include specific technical details and terminology.",
+            "executive": "Use an executive-level tone. Focus on strategic value and high-level outcomes.",
+            "consultative": "Use a consultative, advisory tone. Position as a trusted advisor and partner."
+        }
+        tone_instruction = tone_instructions.get(proposal_tone, tone_instructions["professional"])
+        
+        # Build response style instructions
+        style_instructions = {
+            "concise": "Be very concise. Write 1-2 short paragraphs. Focus on key points only.",
+            "balanced": "Write 2-4 paragraphs. Provide a good balance of detail and brevity.",
+            "detailed": "Write 3-5 detailed paragraphs. Provide comprehensive information and context."
+        }
+        style_instruction = style_instructions.get(ai_response_style, style_instructions["balanced"])
+        
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert proposal writer. Write compelling, professional proposal content that:
+            ("system", f"""You are an expert proposal writer. Write compelling proposal content that:
 - Addresses client needs directly
 - Uses specific data and insights
 - Is clear and persuasive
 - Focuses on business value
 - Is appropriate for the section type
 
-Write 2-4 paragraphs of high-quality content."""),
+Tone: {tone_instruction}
+Style: {style_instruction}
+
+Write high-quality content following the tone and style guidelines above."""),
             ("user", """Write content for the proposal section: "{section_title}"
 
 RFP Summary:
@@ -311,7 +505,16 @@ Write professional, persuasive content for this section. Do not include the sect
             })
             
             content = response.content if hasattr(response, 'content') else str(response)
-            return content.strip()
+            # Clean up markdown formatting issues (remove ** from section titles, etc.)
+            content = content.strip()
+            # Remove ** from section titles if they appear in content
+            import re
+            # Fix patterns like **Title:** to Title:
+            content = re.sub(r'\*\*([^*]+):\*\*', r'\1:', content)
+            # Fix standalone **Title** to Title (but preserve intentional bold)
+            # Only remove if it's at the start of a line or after a newline
+            content = re.sub(r'(^|\n)\*\*([^*]+)\*\*(\s|$)', r'\1\2\3', content, flags=re.MULTILINE)
+            return content
         except Exception as e:
             print(f"AI generation error: {e}")
             return cls._populate_section_basic(

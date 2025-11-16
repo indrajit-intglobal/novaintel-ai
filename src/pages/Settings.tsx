@@ -24,11 +24,11 @@ export default function Settings() {
   });
   
   const [settingsData, setSettingsData] = useState({
-    default_industry: "BFSI",
     proposal_tone: "professional",
     ai_response_style: "balanced",
     secure_mode: false,
     auto_save_insights: true,
+    theme_preference: "light",
   });
 
   // Load user profile
@@ -59,14 +59,35 @@ export default function Settings() {
   useEffect(() => {
     if (userSettings) {
       setSettingsData({
-        default_industry: userSettings.default_industry || "BFSI",
         proposal_tone: userSettings.proposal_tone || "professional",
         ai_response_style: userSettings.ai_response_style || "balanced",
         secure_mode: userSettings.secure_mode || false,
         auto_save_insights: userSettings.auto_save_insights !== false,
+        theme_preference: userSettings.theme_preference || "light",
       });
+      // Apply theme immediately
+      if (userSettings.theme_preference) {
+        applyTheme(userSettings.theme_preference);
+      }
     }
   }, [userSettings]);
+  
+  const applyTheme = (theme: string) => {
+    const root = document.documentElement;
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+    // Store in localStorage for persistence
+    localStorage.setItem("theme", theme);
+  };
+  
+  useEffect(() => {
+    // Apply theme on mount
+    const savedTheme = localStorage.getItem("theme") || settingsData.theme_preference;
+    applyTheme(savedTheme);
+  }, []);
 
   // Update profile mutation
   const updateProfileMutation = useMutation({
@@ -109,16 +130,18 @@ export default function Settings() {
 
   const handleResetDefaults = () => {
     const defaultSettings = {
-      default_industry: "BFSI",
       proposal_tone: "professional",
       ai_response_style: "balanced",
       secure_mode: false,
       auto_save_insights: true,
+      theme_preference: "light",
     };
     setSettingsData(defaultSettings);
+    applyTheme("light");
     updateSettingsMutation.mutate(defaultSettings);
     toast.success("Settings reset to defaults");
   };
+
 
   if (isLoadingUser || isLoadingSettings) {
     return (
@@ -184,26 +207,6 @@ export default function Settings() {
               <h2 className="mb-6 font-heading text-xl font-semibold">Preferences</h2>
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="industry">Default Industry</Label>
-                  <Select
-                    value={settingsData.default_industry}
-                    onValueChange={(value) => setSettingsData({ ...settingsData, default_industry: value })}
-                  >
-                    <SelectTrigger className="bg-background/50">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="BFSI">BFSI</SelectItem>
-                      <SelectItem value="Retail">Retail</SelectItem>
-                      <SelectItem value="Healthcare">Healthcare</SelectItem>
-                      <SelectItem value="Technology">Technology</SelectItem>
-                      <SelectItem value="Manufacturing">Manufacturing</SelectItem>
-                      <SelectItem value="Education">Education</SelectItem>
-                      <SelectItem value="Government">Government</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="tone">Proposal Tone</Label>
                   <Select
                     value={settingsData.proposal_tone}
@@ -216,8 +219,13 @@ export default function Settings() {
                       <SelectItem value="professional">Professional</SelectItem>
                       <SelectItem value="friendly">Friendly</SelectItem>
                       <SelectItem value="technical">Technical</SelectItem>
+                      <SelectItem value="executive">Executive</SelectItem>
+                      <SelectItem value="consultative">Consultative</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    This tone will be applied when generating proposals.
+                  </p>
                 </div>
               </div>
             </Card>
@@ -267,8 +275,32 @@ export default function Settings() {
                     onCheckedChange={(checked) => setSettingsData({ ...settingsData, auto_save_insights: checked })}
                   />
                 </div>
+                <Separator />
+                <div className="space-y-2">
+                  <Label>Theme</Label>
+                  <Select
+                    value={settingsData.theme_preference}
+                    onValueChange={(value) => {
+                      setSettingsData({ ...settingsData, theme_preference: value });
+                      applyTheme(value);
+                    }}
+                  >
+                    <SelectTrigger className="bg-background/50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="light">Light</SelectItem>
+                      <SelectItem value="dark">Dark</SelectItem>
+                      <SelectItem value="system">System</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Choose your preferred color theme
+                  </p>
+                </div>
               </div>
             </Card>
+
           </div>
 
           <div className="space-y-6">

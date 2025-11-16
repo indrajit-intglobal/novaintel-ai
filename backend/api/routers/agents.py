@@ -115,10 +115,18 @@ async def run_all_agents(
     
     # Run workflow
     print(f"🚀 Starting workflow execution...")
+    selected_tasks = request.selected_tasks or {
+        "challenges": True,
+        "questions": True,
+        "cases": True,
+        "proposal": True
+    }
+    print(f"Selected tasks: {selected_tasks}")
     result = workflow_manager.run_workflow(
         project_id=request.project_id,
         rfp_document_id=request.rfp_document_id,
-        db=db
+        db=db,
+        selected_tasks=selected_tasks
     )
     
     if not result.get("success"):
@@ -152,6 +160,71 @@ async def get_workflow_state(
         success=True,
         state=state
     )
+
+@router.get("/status")
+async def get_workflow_status(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get workflow status for a project.
+    Returns current step and progress information.
+    """
+    # Verify project ownership
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.owner_id == current_user.id
+    ).first()
+    
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found"
+        )
+    
+    # Get workflow state from manager
+    state = workflow_manager.get_state_by_project(project_id)
+    
+    if not state:
+        # Check if insights exist (workflow completed)
+        from models.insights import Insights
+        insights = db.query(Insights).filter(Insights.project_id == project_id).first()
+        if insights:
+            return {
+                "status": "completed",
+                "current_step": "completed",
+                "progress": {
+                    "rfp_analyzer": True,
+                    "challenge_extractor": insights.challenges is not None,
+                    "value_proposition": insights.value_propositions is not None,
+                    "discovery_question": insights.discovery_questions is not None,
+                    "case_study_matcher": insights.matching_case_studies is not None,
+                    "proposal_builder": insights.proposal_draft is not None,
+                }
+            }
+        return {
+            "status": "not_started",
+            "current_step": None,
+            "progress": {}
+        }
+    
+    # Determine progress based on state
+    progress = {
+        "rfp_analyzer": state.get("rfp_summary") is not None,
+        "challenge_extractor": state.get("challenges") is not None,
+        "value_proposition": state.get("value_propositions") is not None,
+        "discovery_question": state.get("discovery_questions") is not None,
+        "case_study_matcher": state.get("matching_case_studies") is not None,
+        "proposal_builder": state.get("proposal_draft") is not None,
+    }
+    
+    return {
+        "status": "running",
+        "current_step": state.get("current_step", "start"),
+        "progress": progress,
+        "execution_log": state.get("execution_log", [])
+    }
 
 @router.get("/debug")
 async def debug_workflow(

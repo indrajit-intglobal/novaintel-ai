@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from db.database import get_db
 from models.user import User
-from api.schemas.auth import UserRegister, UserLogin, TokenResponse, RefreshTokenRequest, UserResponse, UserUpdate, UserSettingsUpdate
+from api.schemas.auth import UserRegister, UserLogin, TokenResponse, RefreshTokenRequest, UserResponse, UserUpdate, UserSettingsUpdate, UserSettingsResponse
 from utils.config import settings
+from utils.dependencies import get_current_user
 from utils.security import (
     verify_password,
     get_password_hash,
@@ -246,32 +247,40 @@ async def update_current_user_profile(
         "role": current_user.role or "presales_manager"
     }
 
-@router.get("/me/settings")
+@router.get("/me/settings", response_model=UserSettingsResponse)
 async def get_user_settings(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get user settings (stored in localStorage on frontend, but provide endpoint for future use)."""
-    # For now, return default settings
-    # In future, can store in database JSON column
+    """Get user settings from database."""
     return {
-        "default_industry": "BFSI",
-        "proposal_tone": "professional",
-        "ai_response_style": "balanced",
-        "secure_mode": False,
-        "auto_save_insights": True
+        "proposal_tone": current_user.proposal_tone or "professional",
+        "ai_response_style": current_user.ai_response_style or "balanced",
+        "secure_mode": current_user.secure_mode if current_user.secure_mode is not None else False,
+        "auto_save_insights": current_user.auto_save_insights if current_user.auto_save_insights is not None else True,
+        "theme_preference": current_user.theme_preference or "light"
     }
 
-@router.put("/me/settings")
+@router.put("/me/settings", response_model=UserSettingsResponse)
 async def update_user_settings(
     settings_update: UserSettingsUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update user settings (for now, just acknowledge - can store in DB later)."""
-    # For now, settings are stored in localStorage on frontend
-    # This endpoint can be used to persist settings in the future
+    """Update user settings in database."""
+    update_data = settings_update.model_dump(exclude_unset=True)
+    
+    for field, value in update_data.items():
+        if hasattr(current_user, field):
+            setattr(current_user, field, value)
+    
+    db.commit()
+    db.refresh(current_user)
+    
     return {
-        "message": "Settings updated successfully",
-        "settings": settings_update.model_dump(exclude_unset=True)
+        "proposal_tone": current_user.proposal_tone or "professional",
+        "ai_response_style": current_user.ai_response_style or "balanced",
+        "secure_mode": current_user.secure_mode if current_user.secure_mode is not None else False,
+        "auto_save_insights": current_user.auto_save_insights if current_user.auto_save_insights is not None else True,
+        "theme_preference": current_user.theme_preference or "light"
     }

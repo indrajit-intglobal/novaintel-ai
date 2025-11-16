@@ -67,6 +67,12 @@ def rfp_analyzer_node(state: WorkflowState) -> Dict[str, Any]:
 
 def challenge_extractor_node(state: WorkflowState) -> Dict[str, Any]:
     """Challenge Extractor Agent node."""
+    # Check if challenges task is enabled
+    selected_tasks = state.get("selected_tasks", {})
+    if not selected_tasks.get("challenges", True):
+        print(f"  [Challenge Extractor] Skipped (not selected)")
+        return {"current_step": "challenge_extractor", "challenges": []}
+    
     print(f"  [Challenge Extractor] Starting...")
     updates = {"current_step": "challenge_extractor"}
     
@@ -111,6 +117,12 @@ def challenge_extractor_node(state: WorkflowState) -> Dict[str, Any]:
 
 def discovery_question_node(state: WorkflowState) -> Dict[str, Any]:
     """Discovery Question Agent node."""
+    # Check if questions task is enabled
+    selected_tasks = state.get("selected_tasks", {})
+    if not selected_tasks.get("questions", True):
+        print(f"  [Discovery Question] Skipped (not selected)")
+        return {"discovery_questions": {}}
+    
     print(f"  [Discovery Question] Starting...")
     updates = {}
     
@@ -198,6 +210,12 @@ def value_proposition_node(state: WorkflowState) -> Dict[str, Any]:
 
 def case_study_matcher_node(state: WorkflowState) -> Dict[str, Any]:
     """Case Study Matcher Agent node."""
+    # Check if cases task is enabled
+    selected_tasks = state.get("selected_tasks", {})
+    if not selected_tasks.get("cases", True):
+        print(f"  [Case Study Matcher] Skipped (not selected)")
+        return {"matching_case_studies": []}
+    
     print(f"  [Case Study Matcher] Starting...")
     updates = {}
     
@@ -248,6 +266,12 @@ def case_study_matcher_node(state: WorkflowState) -> Dict[str, Any]:
 
 def proposal_builder_node(state: WorkflowState) -> Dict[str, Any]:
     """Proposal Builder Agent node."""
+    # Check if proposal task is enabled
+    selected_tasks = state.get("selected_tasks", {})
+    if not selected_tasks.get("proposal", True):
+        print(f"  [Proposal Builder] Skipped (not selected)")
+        return {"current_step": "proposal_builder", "proposal_draft": None}
+    
     print(f"  [Proposal Builder] Starting...")
     # This runs sequentially after parallel nodes, so it's safe to update current_step
     updates = {"current_step": "proposal_builder"}
@@ -299,6 +323,13 @@ def proposal_builder_node(state: WorkflowState) -> Dict[str, Any]:
     
     return updates
 
+def should_run_challenges(state: WorkflowState) -> str:
+    """Conditional edge: check if challenges should run."""
+    selected_tasks = state.get("selected_tasks", {})
+    if selected_tasks.get("challenges", True):
+        return "challenge_extractor"
+    return "proposal_builder"  # Skip to proposal if challenges not selected
+
 def create_workflow_graph() -> StateGraph:
     """Create the LangGraph workflow."""
     workflow = StateGraph(WorkflowState)
@@ -313,10 +344,20 @@ def create_workflow_graph() -> StateGraph:
     
     # Define edges (workflow order)
     workflow.set_entry_point("rfp_analyzer")
-    workflow.add_edge("rfp_analyzer", "challenge_extractor")
+    # RFP analyzer always runs, then conditionally go to challenge extractor or proposal builder
+    workflow.add_conditional_edges(
+        "rfp_analyzer",
+        should_run_challenges,
+        {
+            "challenge_extractor": "challenge_extractor",
+            "proposal_builder": "proposal_builder"
+        }
+    )
+    # After challenge extractor, run parallel tasks (they check internally if enabled)
     workflow.add_edge("challenge_extractor", "discovery_question")
     workflow.add_edge("challenge_extractor", "value_proposition")
     workflow.add_edge("challenge_extractor", "case_study_matcher")
+    # All parallel tasks converge to proposal builder
     workflow.add_edge("discovery_question", "proposal_builder")
     workflow.add_edge("value_proposition", "proposal_builder")
     workflow.add_edge("case_study_matcher", "proposal_builder")

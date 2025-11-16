@@ -242,11 +242,11 @@ class ApiClient {
   }
 
   async updateUserSettings(settings: {
-    default_industry?: string;
     proposal_tone?: string;
     ai_response_style?: string;
     secure_mode?: boolean;
     auto_save_insights?: boolean;
+    theme_preference?: string;
   }): Promise<any> {
     return this.request<any>('/auth/me/settings', {
       method: 'PUT',
@@ -338,12 +338,17 @@ class ApiClient {
   }
 
   // Agents/Workflow endpoints
-  async runWorkflow(projectId: number, rfpDocumentId: number): Promise<any> {
+  async runWorkflow(
+    projectId: number, 
+    rfpDocumentId: number, 
+    selectedTasks?: { challenges?: boolean; questions?: boolean; cases?: boolean; proposal?: boolean }
+  ): Promise<any> {
     return this.request<any>('/agents/run-all', {
       method: 'POST',
       body: JSON.stringify({
         project_id: projectId,
         rfp_document_id: rfpDocumentId,
+        selected_tasks: selectedTasks,
       }),
     });
   }
@@ -353,6 +358,10 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ state_id: stateId }),
     });
+  }
+
+  async getWorkflowStatus(projectId: number): Promise<any> {
+    return this.request<any>(`/agents/status?project_id=${projectId}`);
   }
 
   // Case studies endpoints
@@ -394,6 +403,38 @@ class ApiClient {
     });
   }
 
+  // Case study document endpoints
+  async uploadCaseStudyDocument(file: File): Promise<any> {
+    const token = this.getAuthToken();
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${this.baseURL}/case-study-documents/upload`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Upload failed');
+    }
+
+    return response.json();
+  }
+
+  async listCaseStudyDocuments(): Promise<any[]> {
+    return this.request<any[]>('/case-study-documents/list');
+  }
+
+  async deleteCaseStudyDocument(id: number): Promise<void> {
+    return this.request<void>(`/case-study-documents/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Proposal endpoints
   async getProposal(proposalId: number): Promise<any> {
     return this.request<any>(`/proposal/${proposalId}`);
@@ -426,13 +467,14 @@ class ApiClient {
     });
   }
 
-  async generateProposal(projectId: number, templateType: string = 'full', useInsights: boolean = true): Promise<any> {
+  async generateProposal(projectId: number, templateType: string = 'full', useInsights: boolean = true, selectedCaseStudyIds?: number[]): Promise<any> {
     return this.request<any>('/proposal/generate', {
       method: 'POST',
       body: JSON.stringify({
         project_id: projectId,
         template_type: templateType,
         use_insights: useInsights,
+        selected_case_study_ids: selectedCaseStudyIds || undefined,
       }),
     });
   }
@@ -485,6 +527,78 @@ class ApiClient {
     }
 
     return response.blob();
+  }
+
+  async createCaseStudy(data: {
+    title: string;
+    industry: string;
+    impact: string;
+    description?: string;
+  }): Promise<any> {
+    return this.request<any>('/case-studies', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async uploadCaseStudyDocument(file: File): Promise<any> {
+    const token = this.getAuthToken();
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${this.baseURL}/case-study-documents/upload`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Upload failed');
+    }
+
+    return response.json();
+  }
+
+  async listCaseStudyDocuments(): Promise<any[]> {
+    return this.request<any[]>('/case-study-documents/list');
+  }
+
+  async deleteCaseStudyDocument(id: number): Promise<void> {
+    return this.request<void>(`/case-study-documents/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Global Search
+  async globalSearch(query: string): Promise<any[]> {
+    return this.request<any[]>(`/search?q=${encodeURIComponent(query)}`);
+  }
+
+  // Notifications
+  async getNotifications(): Promise<any[]> {
+    return this.request<any[]>('/notifications');
+  }
+
+  async markNotificationAsRead(id: number): Promise<void> {
+    return this.request<void>(`/notifications/${id}/read`, {
+      method: 'PUT',
+    });
+  }
+
+  async markAllNotificationsAsRead(): Promise<void> {
+    return this.request<void>('/notifications/read-all', {
+      method: 'PUT',
+    });
+  }
+
+  // Publish Project as Case Study
+  async publishProjectAsCaseStudy(projectId: number): Promise<any> {
+    return this.request<any>(`/projects/${projectId}/publish-case-study`, {
+      method: 'POST',
+    });
   }
 }
 

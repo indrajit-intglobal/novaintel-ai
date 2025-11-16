@@ -27,6 +27,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { MarkdownText } from "@/components/ui/markdown-text";
 
 interface ProposalSection {
   id: number;
@@ -60,6 +61,7 @@ export default function ProposalBuilder() {
   const [isSaving, setIsSaving] = useState(false);
   const [selectedSectionId, setSelectedSectionId] = useState<number | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<string | null>(null);
 
   // Load project info
   const { data: project } = useQuery({
@@ -103,10 +105,16 @@ export default function ProposalBuilder() {
     }
   }, [proposal]);
 
+  // Get selected case study IDs from URL params (passed from Insights page)
+  const selectedCaseStudyIdsParam = searchParams.get("selected_case_study_ids");
+  const selectedCaseStudyIds = selectedCaseStudyIdsParam 
+    ? selectedCaseStudyIdsParam.split(",").map(id => parseInt(id)).filter(id => !isNaN(id))
+    : undefined;
+
   // Generate proposal mutation
   const generateMutation = useMutation({
     mutationFn: async ({ templateType, useInsights }: { templateType: string; useInsights: boolean }) => {
-      return await apiClient.generateProposal(projectId, templateType, useInsights);
+      return await apiClient.generateProposal(projectId, templateType, useInsights, selectedCaseStudyIds);
     },
     onSuccess: (data) => {
       setSections(data.sections || []);
@@ -157,6 +165,7 @@ export default function ProposalBuilder() {
       if (!proposal?.id) {
         throw new Error("Please save the proposal before exporting");
       }
+      setExportingFormat(format);
       const blob = await apiClient.exportProposal(proposal.id, format);
       return { blob, format };
     },
@@ -170,9 +179,11 @@ export default function ProposalBuilder() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
       toast.success(`Exported as ${format.toUpperCase()}`);
+      setExportingFormat(null);
     },
     onError: (error: any) => {
       toast.error(error.message || "Export failed");
+      setExportingFormat(null);
     },
   });
 
@@ -374,13 +385,17 @@ export default function ProposalBuilder() {
               {previewMode ? "Edit" : "Preview"}
             </Button>
             <Select value={templateType} onValueChange={setTemplateType}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-[180px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="executive">Executive</SelectItem>
-                <SelectItem value="full">Full</SelectItem>
+                <SelectItem value="full">Full Proposal</SelectItem>
+                <SelectItem value="executive">Executive Summary</SelectItem>
+                <SelectItem value="exclusive">Exclusive</SelectItem>
+                <SelectItem value="short-pitch">Short Pitch</SelectItem>
+                <SelectItem value="executive-summary">Executive Summary (Detailed)</SelectItem>
                 <SelectItem value="one-page">One-Page</SelectItem>
+                <SelectItem value="technical-appendix">Technical Appendix</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -560,8 +575,15 @@ export default function ProposalBuilder() {
                         </div>
                       </div>
                       {previewMode ? (
-                        <div className="prose prose-sm max-w-none text-foreground whitespace-pre-wrap">
-                          {section.content || <span className="text-muted-foreground italic">No content</span>}
+                        <div className="prose prose-sm max-w-none text-foreground">
+                          {section.content ? (
+                            <MarkdownText 
+                              content={section.content} 
+                              className="text-foreground"
+                            />
+                          ) : (
+                            <span className="text-muted-foreground italic">No content</span>
+                          )}
                         </div>
                       ) : (
                         <Textarea
@@ -612,9 +634,9 @@ export default function ProposalBuilder() {
                   variant="outline"
                   className="w-full justify-start"
                   onClick={() => exportMutation.mutate('pdf')}
-                  disabled={!proposal?.id || exportMutation.isPending}
+                  disabled={!proposal?.id || (exportMutation.isPending && exportingFormat !== 'pdf')}
                 >
-                  {exportMutation.isPending ? (
+                  {exportMutation.isPending && exportingFormat === 'pdf' ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <FileText className="mr-2 h-4 w-4" />
@@ -625,9 +647,9 @@ export default function ProposalBuilder() {
                   variant="outline"
                   className="w-full justify-start"
                   onClick={() => exportMutation.mutate('docx')}
-                  disabled={!proposal?.id || exportMutation.isPending}
+                  disabled={!proposal?.id || (exportMutation.isPending && exportingFormat !== 'docx')}
                 >
-                  {exportMutation.isPending ? (
+                  {exportMutation.isPending && exportingFormat === 'docx' ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <FileText className="mr-2 h-4 w-4" />
@@ -637,15 +659,12 @@ export default function ProposalBuilder() {
                 <Button
                   variant="outline"
                   className="w-full justify-start"
-                  onClick={() => exportMutation.mutate('pptx')}
-                  disabled={!proposal?.id || exportMutation.isPending}
+                  onClick={() => toast.info("PPTX export coming soon!")}
+                  disabled={true}
+                  title="Coming Soon"
                 >
-                  {exportMutation.isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="mr-2 h-4 w-4" />
-                  )}
-                  Export as PPTX
+                  <Download className="mr-2 h-4 w-4 opacity-50" />
+                  Export as PPTX (Coming Soon)
                 </Button>
               </div>
             </Card>

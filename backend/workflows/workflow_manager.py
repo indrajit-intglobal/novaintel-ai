@@ -16,12 +16,14 @@ class WorkflowManager:
     def __init__(self):
         self.workflow = workflow_graph
         self.active_states: Dict[str, WorkflowState] = {}
+        self.project_states: Dict[int, str] = {}  # Map project_id to state_id
     
     def run_workflow(
         self,
         project_id: int,
         rfp_document_id: int,
-        db: Session
+        db: Session,
+        selected_tasks: Optional[Dict[str, bool]] = None
     ) -> Dict[str, Any]:
         """
         Run the complete workflow.
@@ -73,12 +75,14 @@ class WorkflowManager:
             project_id=project_id,
             rfp_document_id=rfp_document_id,
             rfp_text=rfp_text,
-            retrieved_context=None
+            retrieved_context=None,
+            selected_tasks=selected_tasks
         )
         
         # Store state
         state_id = f"{project_id}_{rfp_document_id}"
         self.active_states[state_id] = initial_state
+        self.project_states[project_id] = state_id  # Map project to state
         print(f"✓ Initial state created: {state_id}")
         
         try:
@@ -180,13 +184,31 @@ class WorkflowManager:
             }
     
     def get_state(self, state_id: str) -> Optional[WorkflowState]:
-        """Get workflow state by ID."""
+        """Get workflow state by state_id."""
         return self.active_states.get(state_id)
+    
+    def get_state_by_project(self, project_id: int) -> Optional[WorkflowState]:
+        """Get workflow state by project_id."""
+        state_id = self.project_states.get(project_id)
+        if state_id:
+            return self.active_states.get(state_id)
+        return None
     
     def _save_insights(self, state: WorkflowState, db: Session):
         """Save workflow results to Insights table."""
         try:
             project_id = state["project_id"]
+            
+            # Check user's auto-save setting
+            from models.project import Project
+            from models.user import User
+            project = db.query(Project).filter(Project.id == project_id).first()
+            if project and project.owner_id:
+                user = db.query(User).filter(User.id == project.owner_id).first()
+                if user and user.auto_save_insights is False:
+                    print(f"\n  ⏭️  Auto-save insights is disabled for user {user.id}. Skipping save.")
+                    return
+            
             print(f"\n  💾 Saving insights for project {project_id}...")
             
             # Debug: Print what we're trying to save
@@ -254,6 +276,16 @@ class WorkflowManager:
             else:
                 insights.tags = None
             
+            matching_case_studies = state.get("matching_case_studies")
+            if matching_case_studies:
+                if isinstance(matching_case_studies, list):
+                    insights.matching_case_studies = matching_case_studies if matching_case_studies else None
+                else:
+                    print(f"  ⚠️  Matching case studies is not a list: {type(matching_case_studies)}, value: {matching_case_studies}")
+                    insights.matching_case_studies = None
+            else:
+                insights.matching_case_studies = None
+            
             insights.ai_model_used = state.get("ai_model_used", "gemini-2.0-flash")
             from datetime import datetime
             insights.analysis_timestamp = datetime.utcnow()
@@ -263,6 +295,7 @@ class WorkflowManager:
             print(f"    - Challenges: {len(insights.challenges) if insights.challenges and isinstance(insights.challenges, list) else 0}")
             print(f"    - Value propositions: {len(insights.value_propositions) if insights.value_propositions and isinstance(insights.value_propositions, list) else 0}")
             print(f"    - Discovery questions: {len(insights.discovery_questions) if insights.discovery_questions and isinstance(insights.discovery_questions, dict) else 0}")
+            print(f"    - Matching case studies: {len(insights.matching_case_studies) if insights.matching_case_studies and isinstance(insights.matching_case_studies, list) else 0}")
             print(f"    - Tags: {len(insights.tags) if insights.tags and isinstance(insights.tags, list) else 0}")
             
             db.commit()

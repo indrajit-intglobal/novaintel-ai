@@ -15,9 +15,16 @@ class User(Base):
     email_verified = Column(Boolean, default=False)  # NEW: Email verification status
     email_verification_token = Column(String, nullable=True)  # NEW: Verification token
     email_verified_at = Column(DateTime, nullable=True)  # NEW: Verification timestamp
+    # User Settings
+    proposal_tone = Column(String, default="professional")  # professional, friendly, technical, executive, consultative
+    ai_response_style = Column(String, default="balanced")  # concise, balanced, detailed
+    secure_mode = Column(Boolean, default=False)  # PII sanitization enabled
+    auto_save_insights = Column(Boolean, default=True)  # Auto-save AI insights
+    theme_preference = Column(String, default="light")  # light, dark, system
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
     projects = relationship("Project", back_populates="owner", cascade="all, delete-orphan")
+    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
 

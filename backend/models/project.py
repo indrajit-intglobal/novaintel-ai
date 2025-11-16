@@ -5,10 +5,12 @@ import enum
 from db.database import Base
 
 class ProjectStatus(str, enum.Enum):
-    DRAFT = "draft"
-    IN_PROGRESS = "in_progress"
-    REVIEW = "review"
-    COMPLETED = "completed"
+    DRAFT = "Draft"
+    ACTIVE = "Active"
+    SUBMITTED = "Submitted"
+    WON = "Won"
+    LOST = "Lost"
+    ARCHIVED = "Archived"
 
 class ProjectType(str, enum.Enum):
     NEW = "new"

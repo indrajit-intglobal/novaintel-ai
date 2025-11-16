@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Switch } from "@/components/ui/switch";
 import { Upload, Sparkles } from "lucide-react";
 import { useState, useRef } from "react";
@@ -24,11 +25,59 @@ export default function NewProject() {
   const [projectType, setProjectType] = useState("");
   const [description, setDescription] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  // Options for searchable dropdowns
+  const industryOptions = [
+    { value: "BFSI", label: "BFSI (Banking, Financial Services & Insurance)" },
+    { value: "Healthcare", label: "Healthcare & Life Sciences" },
+    { value: "Technology", label: "Technology & Software" },
+    { value: "Telecommunications", label: "Telecommunications" },
+    { value: "Manufacturing", label: "Manufacturing & Industrial" },
+    { value: "Retail", label: "Retail & E-commerce" },
+    { value: "Energy", label: "Energy & Utilities" },
+    { value: "Government", label: "Government & Public Sector" },
+    { value: "Education", label: "Education" },
+    { value: "Media", label: "Media & Entertainment" },
+    { value: "Transportation", label: "Transportation & Logistics" },
+    { value: "Real Estate", label: "Real Estate & Construction" },
+    { value: "Hospitality", label: "Hospitality & Travel" },
+    { value: "Aerospace", label: "Aerospace & Defense" },
+    { value: "Automotive", label: "Automotive" },
+    { value: "Pharmaceuticals", label: "Pharmaceuticals" },
+    { value: "Consulting", label: "Consulting & Professional Services" },
+    { value: "Other", label: "Other" },
+  ];
+
+  const regionOptions = [
+    { value: "North America", label: "North America (US, Canada, Mexico)" },
+    { value: "South America", label: "South America" },
+    { value: "Europe", label: "Europe (UK, Germany, France, etc.)" },
+    { value: "APAC", label: "Asia Pacific (India, China, Japan, Australia, etc.)" },
+    { value: "Middle East", label: "Middle East (UAE, Saudi Arabia, etc.)" },
+    { value: "Africa", label: "Africa" },
+    { value: "India", label: "India" },
+    { value: "Southeast Asia", label: "Southeast Asia (Singapore, Malaysia, etc.)" },
+    { value: "LATAM", label: "Latin America" },
+    { value: "Global", label: "Global/Multi-region" },
+  ];
+
+  const projectTypeOptions = [
+    { value: "new", label: "New Business / Greenfield" },
+    { value: "expansion", label: "Expansion / Upsell" },
+    { value: "renewal", label: "Renewal / Contract Extension" },
+    { value: "migration", label: "Migration / Modernization" },
+    { value: "integration", label: "Integration / API Development" },
+    { value: "consulting", label: "Consulting / Advisory" },
+    { value: "support", label: "Support & Maintenance" },
+    { value: "custom", label: "Custom Development" },
+    { value: "saas", label: "SaaS Implementation" },
+    { value: "cloud", label: "Cloud Migration" },
+    { value: "digital", label: "Digital Transformation" },
+  ];
   const [selectedTasks, setSelectedTasks] = useState({
     challenges: true,
     questions: true,
     cases: true,
-    proposal: true,
   });
   const [projectId, setProjectId] = useState<number | null>(null);
 
@@ -82,39 +131,42 @@ export default function NewProject() {
           const uploadResult = await apiClient.uploadRFP(project.id, selectedFile);
           toast.success("RFP uploaded successfully!");
           
-          // Build index
-          try {
-            await apiClient.buildIndex(uploadResult.rfp_document_id);
-            toast.success("Index built successfully!");
-            
-            // Run workflow if tasks are selected
-            if (selectedTasks.challenges || selectedTasks.questions || selectedTasks.cases || selectedTasks.proposal) {
-              try {
-                console.log(`Starting workflow for project ${project.id}, RFP document ${uploadResult.rfp_document_id}`);
-                const workflowResult = await apiClient.runWorkflow(project.id, uploadResult.rfp_document_id);
-                console.log("Workflow result:", workflowResult);
-                
-                if (workflowResult.success) {
-                  toast.success("Analysis started! This may take a few minutes.");
-                } else {
-                  toast.error(`Workflow failed: ${workflowResult.error || 'Unknown error'}`);
-                  console.error("Workflow failed:", workflowResult);
-                }
-              } catch (error: any) {
-                const errorMessage = error.message || error.detail || 'Unknown error';
-                toast.error(`Failed to start analysis: ${errorMessage}`);
-                console.error("Workflow error:", error);
-                // Still navigate to insights page so user can see the error
-              }
-            } else {
-              console.log("No tasks selected, skipping workflow");
-            }
-          } catch (error: any) {
-            toast.error(`Failed to build index: ${error.message}`);
-          }
+          // Navigate to insights page immediately after upload
+          const tasksParam = new URLSearchParams();
+          tasksParam.set('project_id', project.id.toString());
+          if (selectedTasks.challenges) tasksParam.set('challenges', 'true');
+          if (selectedTasks.questions) tasksParam.set('questions', 'true');
+          if (selectedTasks.cases) tasksParam.set('cases', 'true');
+          navigate(`/insights?${tasksParam.toString()}`);
           
-          // Navigate to insights page
-          navigate(`/insights?project_id=${project.id}`);
+          // Build index and run workflow in the background (don't await)
+          // User will see loader on insights page while these run
+          (async () => {
+            try {
+              await apiClient.buildIndex(uploadResult.rfp_document_id);
+              console.log("Index built successfully!");
+              
+              // Run workflow if tasks are selected
+              if (selectedTasks.challenges || selectedTasks.questions || selectedTasks.cases || selectedTasks.proposal) {
+                try {
+                  console.log(`Starting workflow for project ${project.id}, RFP document ${uploadResult.rfp_document_id}`);
+                  const workflowResult = await apiClient.runWorkflow(project.id, uploadResult.rfp_document_id, selectedTasks);
+                  console.log("Workflow result:", workflowResult);
+                  
+                  if (!workflowResult.success) {
+                    console.error(`Workflow failed: ${workflowResult.error || 'Unknown error'}`);
+                  }
+                } catch (error: any) {
+                  const errorMessage = error.message || error.detail || 'Unknown error';
+                  console.error(`Failed to start analysis: ${errorMessage}`);
+                }
+              } else {
+                console.log("No tasks selected, skipping workflow");
+              }
+            } catch (error: any) {
+              console.error(`Failed to build index: ${error.message}`);
+            }
+          })();
         } catch (error: any) {
           toast.error(`Failed to upload RFP: ${error.message}`);
         }
@@ -138,20 +190,47 @@ export default function NewProject() {
     try {
       // Upload file if not already uploaded
       const uploadResult = await apiClient.uploadRFP(projectId, selectedFile);
+      toast.success("RFP uploaded successfully!");
       
-      // Build index
-      await apiClient.buildIndex(uploadResult.rfp_document_id);
+      // Navigate to insights page immediately after upload
+      const tasksParam = new URLSearchParams();
+      tasksParam.set('project_id', projectId.toString());
+      if (selectedTasks.challenges) tasksParam.set('challenges', 'true');
+      if (selectedTasks.questions) tasksParam.set('questions', 'true');
+      if (selectedTasks.cases) tasksParam.set('cases', 'true');
+      if (selectedTasks.proposal) tasksParam.set('proposal', 'true');
+      navigate(`/insights?${tasksParam.toString()}`);
       
-      // Run workflow if tasks are selected
-      if (selectedTasks.challenges || selectedTasks.questions || selectedTasks.cases || selectedTasks.proposal) {
-        await apiClient.runWorkflow(projectId, uploadResult.rfp_document_id);
-        toast.success("Analysis started! This may take a few minutes.");
-        navigate(`/insights?project_id=${projectId}`);
-      } else {
-        navigate(`/insights?project_id=${projectId}`);
-      }
+      // Build index and run workflow in the background (don't await)
+      // User will see loader on insights page while these run
+      (async () => {
+        try {
+          await apiClient.buildIndex(uploadResult.rfp_document_id);
+          console.log("Index built successfully!");
+          
+          // Run workflow if tasks are selected
+          if (selectedTasks.challenges || selectedTasks.questions || selectedTasks.cases) {
+            try {
+              console.log(`Starting workflow for project ${projectId}, RFP document ${uploadResult.rfp_document_id}`);
+              const workflowResult = await apiClient.runWorkflow(projectId, uploadResult.rfp_document_id, selectedTasks);
+              console.log("Workflow result:", workflowResult);
+              
+              if (!workflowResult.success) {
+                console.error(`Workflow failed: ${workflowResult.error || 'Unknown error'}`);
+              }
+            } catch (error: any) {
+              const errorMessage = error.message || error.detail || 'Unknown error';
+              console.error(`Failed to start analysis: ${errorMessage}`);
+            }
+          } else {
+            console.log("No tasks selected, skipping workflow");
+          }
+        } catch (error: any) {
+          console.error(`Failed to build index: ${error.message}`);
+        }
+      })();
     } catch (error: any) {
-      toast.error(error.message || "Analysis failed");
+      toast.error(error.message || "Upload failed");
     }
   };
 
@@ -184,45 +263,36 @@ export default function NewProject() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="industry">Industry</Label>
-                  <Select value={industry} onValueChange={setIndustry}>
-                    <SelectTrigger className="bg-background/50">
-                      <SelectValue placeholder="Select industry" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="BFSI">BFSI</SelectItem>
-                      <SelectItem value="Retail">Retail</SelectItem>
-                      <SelectItem value="Healthcare">Healthcare</SelectItem>
-                      <SelectItem value="Technology">Technology</SelectItem>
-                      <SelectItem value="Manufacturing">Manufacturing</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    options={industryOptions}
+                    value={industry}
+                    onValueChange={setIndustry}
+                    placeholder="Select industry"
+                    searchPlaceholder="Search industries..."
+                    emptyMessage="No industry found."
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="region">Region</Label>
-                  <Select value={region} onValueChange={setRegion}>
-                    <SelectTrigger className="bg-background/50">
-                      <SelectValue placeholder="Select region" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="North America">North America</SelectItem>
-                      <SelectItem value="Europe">Europe</SelectItem>
-                      <SelectItem value="APAC">APAC</SelectItem>
-                      <SelectItem value="LATAM">LATAM</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    options={regionOptions}
+                    value={region}
+                    onValueChange={setRegion}
+                    placeholder="Select region"
+                    searchPlaceholder="Search regions..."
+                    emptyMessage="No region found."
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="projectType">Project Type</Label>
-                  <Select value={projectType} onValueChange={setProjectType}>
-                    <SelectTrigger className="bg-background/50">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="new">New Business</SelectItem>
-                      <SelectItem value="expansion">Expansion</SelectItem>
-                      <SelectItem value="renewal">Renewal</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    options={projectTypeOptions}
+                    value={projectType}
+                    onValueChange={setProjectType}
+                    placeholder="Select project type"
+                    searchPlaceholder="Search project types..."
+                    emptyMessage="No project type found."
+                  />
                 </div>
               </div>
               <div className="mt-6 space-y-2">
@@ -240,7 +310,8 @@ export default function NewProject() {
 
             {/* Upload RFP */}
             <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
-              <h2 className="mb-6 font-heading text-xl font-semibold">Upload RFP Document</h2>
+              <h2 className="mb-6 font-heading text-xl font-semibold">Upload RFP Document <span className="text-destructive">*</span></h2>
+              <p className="text-sm text-muted-foreground mb-4">RFP document upload is required before analysis can proceed.</p>
               <div
                 className="flex items-center justify-center rounded-xl border-2 border-dashed border-border bg-background/30 p-12 transition-colors hover:border-primary/50 cursor-pointer"
                 onDrop={handleFileDrop}
@@ -288,7 +359,6 @@ export default function NewProject() {
                   { id: "challenges", label: "Extract Business Challenges", description: "Identify key pain points and requirements" },
                   { id: "questions", label: "Generate Discovery Questions", description: "Create tailored questionnaires" },
                   { id: "cases", label: "Recommend Case Studies", description: "Match relevant success stories" },
-                  { id: "proposal", label: "Draft Initial Proposal", description: "Generate proposal outline" },
                 ].map((task) => (
                   <div 
                     key={task.id} 
@@ -323,7 +393,7 @@ export default function NewProject() {
                   className="w-full bg-white text-primary hover:bg-white/90 shadow-sm" 
                   size="lg"
                   onClick={handleAnalyze}
-                  disabled={createProjectMutation.isPending || !clientName || !industry || !region || !projectType}
+                  disabled={createProjectMutation.isPending || !clientName || !industry || !region || !projectType || !selectedFile || (!selectedTasks.challenges && !selectedTasks.questions && !selectedTasks.cases)}
                 >
                   {createProjectMutation.isPending ? "Creating..." : "Analyze RFP"}
                 </Button>

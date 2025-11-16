@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 from db.database import get_db
 from models.user import User
@@ -190,45 +190,76 @@ async def generate_proposal(
     
     # Get template
     sections = ProposalTemplates.get_template(request.template_type)
-    
-    # Populate with insights if requested
-    if request.use_insights:
-        insights = db.query(Insights).filter(
-            Insights.project_id == request.project_id
-        ).first()
+
+    # Always try to populate with insights if available
+    insights = db.query(Insights).filter(
+        Insights.project_id == request.project_id
+    ).first()
+
+    if insights:
+        # Get matching case studies from insights
+        matching_case_studies = []
         
-        if insights:
-            # Get matching case studies if available
-            matching_case_studies = []
-            if hasattr(insights, 'matching_case_studies') and insights.matching_case_studies:
-                matching_case_studies = insights.matching_case_studies
-            elif insights.challenges:
-                # Try to get case studies from database based on challenges
-                from models.case_study import CaseStudy
-                all_case_studies = db.query(CaseStudy).limit(5).all()
-                matching_case_studies = [
-                    {
-                        "id": cs.id,
-                        "title": cs.title,
-                        "industry": cs.industry,
-                        "impact": cs.impact,
-                        "description": cs.description
-                    }
-                    for cs in all_case_studies
-                ]
-            
-            insights_dict = {
-                "rfp_summary": insights.executive_summary or "",
-                "challenges": insights.challenges or [],
-                "value_propositions": insights.value_propositions or [],
-                "matching_case_studies": matching_case_studies
-            }
-            # Use AI to generate full content
-            sections = ProposalTemplates.populate_from_insights(
-                request.template_type,
-                insights_dict,
-                use_ai=True
-            )
+        # If selected_case_study_ids provided, prioritize those
+        if request.selected_case_study_ids:
+            from models.case_study import CaseStudy
+            selected_case_studies = db.query(CaseStudy).filter(
+                CaseStudy.id.in_(request.selected_case_study_ids)
+            ).all()
+            matching_case_studies = [
+                {
+                    "id": cs.id,
+                    "title": cs.title,
+                    "industry": cs.industry,
+                    "impact": cs.impact,
+                    "description": cs.description,
+                    "project_description": cs.project_description
+                }
+                for cs in selected_case_studies
+            ]
+            # Also include any from insights that weren't selected (as fallback)
+            if insights.matching_case_studies:
+                for cs in insights.matching_case_studies:
+                    if cs.get("id") not in request.selected_case_study_ids:
+                        matching_case_studies.append(cs)
+        elif insights.matching_case_studies:
+            matching_case_studies = insights.matching_case_studies
+        elif insights.challenges:
+            # Fallback: Try to get case studies from database based on challenges
+            from models.case_study import CaseStudy
+            all_case_studies = db.query(CaseStudy).limit(5).all()
+            matching_case_studies = [
+                {
+                    "id": cs.id,
+                    "title": cs.title,
+                    "industry": cs.industry,
+                    "impact": cs.impact,
+                    "description": cs.description
+                }
+                for cs in all_case_studies
+            ]
+        
+        insights_dict = {
+            "rfp_summary": insights.executive_summary or "",
+            "challenges": insights.challenges or [],
+            "value_propositions": insights.value_propositions or [],
+            "matching_case_studies": matching_case_studies
+        }
+        
+        # Get user settings for proposal generation
+        proposal_tone = current_user.proposal_tone or "professional"
+        ai_response_style = current_user.ai_response_style or "balanced"
+        secure_mode = current_user.secure_mode if current_user.secure_mode is not None else False
+        
+        # Use AI to generate full content if use_insights is True, otherwise use basic population
+        sections = ProposalTemplates.populate_from_insights(
+            request.template_type,
+            insights_dict,
+            use_ai=request.use_insights,
+            proposal_tone=proposal_tone,
+            ai_response_style=ai_response_style,
+            secure_mode=secure_mode
+        )
     
     if existing_proposal:
         # Update existing proposal with new AI-generated content

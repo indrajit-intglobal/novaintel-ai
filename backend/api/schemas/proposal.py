@@ -24,6 +24,7 @@ class ProposalGenerateRequest(BaseModel):
     project_id: int
     template_type: Optional[str] = "full"
     use_insights: Optional[bool] = True
+    selected_case_study_ids: Optional[List[int]] = None
 
 class ProposalSaveDraftRequest(BaseModel):
     proposal_id: int
