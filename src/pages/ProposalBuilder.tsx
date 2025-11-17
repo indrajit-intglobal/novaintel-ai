@@ -332,78 +332,81 @@ export default function ProposalBuilder() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="font-heading text-3xl font-bold">Proposal Builder</h1>
-              {project && (
-                <Badge variant="outline">{project.client_name}</Badge>
-              )}
-            </div>
-            <p className="text-muted-foreground">
-              {proposal ? "Edit your proposal" : "Create a winning proposal with AI-powered content"}
-            </p>
-          </div>
-          <div className="flex gap-3">
-            {lastSaved && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <CheckCircle2 className="h-4 w-4" />
-                Saved {lastSaved.toLocaleTimeString()}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background p-8 border border-border/40">
+          <div className="relative z-10 flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className="font-heading text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">Proposal Builder</h1>
+                {project && (
+                  <Badge variant="outline" className="text-lg px-3 py-1">{project.client_name}</Badge>
+                )}
               </div>
-            )}
-            {proposal && insights && (
+              <p className="text-muted-foreground text-lg">
+                {proposal ? "Edit your proposal" : "Create a winning proposal with AI-powered content"}
+              </p>
+            </div>
+            <div className="flex gap-3">
+              {lastSaved && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-background/50 px-3 py-2 rounded-lg border border-border/40">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  Saved {lastSaved.toLocaleTimeString()}
+                </div>
+              )}
+              {proposal && insights && (
+                <Button 
+                  variant="outline" 
+                  onClick={() => handleGenerate(true)}
+                  disabled={isGenerating}
+                >
+                  {isGenerating ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 h-4 w-4" />
+                  )}
+                  Regenerate All
+                </Button>
+              )}
               <Button 
                 variant="outline" 
-                onClick={() => handleGenerate(true)}
-                disabled={isGenerating}
+                onClick={handleSave}
+                disabled={isSaving || sections.length === 0}
               >
-                {isGenerating ? (
+                {isSaving ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  <Sparkles className="mr-2 h-4 w-4" />
+                  <Save className="mr-2 h-4 w-4" />
                 )}
-                Regenerate All
+                Save
               </Button>
-            )}
-            <Button 
-              variant="outline" 
-              onClick={handleSave}
-              disabled={isSaving || sections.length === 0}
-            >
-              {isSaving ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="mr-2 h-4 w-4" />
-              )}
-              Save
-            </Button>
-            <Button 
-              onClick={() => setPreviewMode(!previewMode)}
-              variant={previewMode ? "default" : "outline"}
-            >
-              <Eye className="mr-2 h-4 w-4" />
-              {previewMode ? "Edit" : "Preview"}
-            </Button>
-            <Select value={templateType} onValueChange={setTemplateType}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="full">Full Proposal</SelectItem>
-                <SelectItem value="executive">Executive Summary</SelectItem>
-                <SelectItem value="exclusive">Exclusive</SelectItem>
-                <SelectItem value="short-pitch">Short Pitch</SelectItem>
-                <SelectItem value="executive-summary">Executive Summary (Detailed)</SelectItem>
-                <SelectItem value="one-page">One-Page</SelectItem>
-                <SelectItem value="technical-appendix">Technical Appendix</SelectItem>
-              </SelectContent>
-            </Select>
+              <Button 
+                onClick={() => setPreviewMode(!previewMode)}
+                variant={previewMode ? "default" : "outline"}
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                {previewMode ? "Edit" : "Preview"}
+              </Button>
+              <Select value={templateType} onValueChange={setTemplateType}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="full">Full Proposal</SelectItem>
+                  <SelectItem value="executive">Executive Summary</SelectItem>
+                  <SelectItem value="exclusive">Exclusive</SelectItem>
+                  <SelectItem value="short-pitch">Short Pitch</SelectItem>
+                  <SelectItem value="executive-summary">Executive Summary (Detailed)</SelectItem>
+                  <SelectItem value="one-page">One-Page</SelectItem>
+                  <SelectItem value="technical-appendix">Technical Appendix</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
         </div>
 
         {/* Generate/Regenerate Proposal Card - Show when no sections or when user wants to regenerate */}
         {sections.length === 0 && (
-          <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
+          <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-heading text-lg font-semibold mb-2">
@@ -437,7 +440,7 @@ export default function ProposalBuilder() {
                   <Button
                     onClick={() => handleGenerate(true)}
                     disabled={isGenerating}
-                    className="bg-gradient-primary"
+                    className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg"
                   >
                     {isGenerating ? (
                       <>
@@ -473,7 +476,7 @@ export default function ProposalBuilder() {
           {/* Main Content Area */}
           <div className="lg:col-span-2 space-y-6">
             {/* Title Input */}
-            <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
+            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
               <Label htmlFor="proposal-title" className="mb-2 block font-semibold">
                 Proposal Title
               </Label>
@@ -487,7 +490,7 @@ export default function ProposalBuilder() {
             </Card>
 
             {/* Sections */}
-            <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
+            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
               <div className="mb-6 flex items-center justify-between">
                 <h2 className="font-heading text-xl font-semibold">Proposal Sections</h2>
                 <Button size="sm" variant="outline" onClick={handleAddSection}>
@@ -500,6 +503,98 @@ export default function ProposalBuilder() {
                 <div className="text-center py-12 text-muted-foreground">
                   <FileText className="mx-auto h-12 w-12 mb-4 opacity-50" />
                   <p>No sections yet. Add a section or generate from template.</p>
+                </div>
+              ) : previewMode ? (
+                /* Modern Proposal Preview */
+                <div className="bg-white rounded-lg shadow-2xl p-12 border border-gray-200 max-w-4xl mx-auto">
+                  {/* Header Section */}
+                  <div className="mb-8">
+                    <div className="flex justify-between items-start pb-6 border-b-2 border-blue-800">
+                      <div>
+                        <h1 className="text-2xl font-bold text-gray-900">NovaIntel AI</h1>
+                        <p className="text-gray-600 text-sm">AI-Powered Proposal Platform</p>
+                      </div>
+                      <div className="text-right">
+                        <h2 className="text-3xl font-bold text-blue-800">Request for Proposal</h2>
+                        <p className="text-base text-gray-700 mt-1">Project: {title}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* RFP Details */}
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-3 mb-8">
+                    <div className="flex">
+                      <strong className="w-32 text-gray-700 text-sm">Issue Date:</strong>
+                      <span className="text-gray-800 text-sm">{new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                    </div>
+                    <div className="flex">
+                      <strong className="w-32 text-gray-700 text-sm">Client:</strong>
+                      <span className="text-gray-800 text-sm">{project?.client_name || '[Client Name]'}</span>
+                    </div>
+                    <div className="flex">
+                      <strong className="w-32 text-gray-700 text-sm">Project:</strong>
+                      <span className="text-gray-800 text-sm">{project?.name || title}</span>
+                    </div>
+                    <div className="flex">
+                      <strong className="w-32 text-gray-700 text-sm">Document ID:</strong>
+                      <span className="text-gray-800 text-sm">RFP-{new Date().getFullYear()}-{Math.random().toString(36).substr(2, 6).toUpperCase()}</span>
+                    </div>
+                  </div>
+
+                  {/* Confidentiality Notice */}
+                  <div className="p-4 border-2 border-red-300 bg-red-50 rounded-lg mb-8">
+                    <h3 className="text-base font-bold text-red-800">Confidentiality Notice</h3>
+                    <p className="text-sm text-red-700 mt-1">
+                      This document contains confidential and proprietary information. 
+                      The contents may not be disclosed to any third party without express written consent. 
+                      All recipients are required to return or destroy this document upon request.
+                    </p>
+                  </div>
+
+                  {/* Sections */}
+                  {sections.map((section, index) => (
+                    <div key={section.id} className="mb-8">
+                      <h2 className="text-2xl font-bold text-blue-800 pb-2 mb-4">
+                        {index + 1}.0 {section.title}
+                      </h2>
+                      <div className="text-gray-700 leading-relaxed space-y-3">
+                        {section.content ? (
+                          section.content.split('\n').map((line, i) => {
+                            const trimmedLine = line.trim();
+                            if (!trimmedLine) return <div key={i} className="h-3"></div>;
+                            
+                            // Handle bullet points
+                            if (trimmedLine.startsWith('•') || trimmedLine.startsWith('-')) {
+                              return (
+                                <div key={i} className="flex gap-2">
+                                  <span className="text-blue-600">•</span>
+                                  <span>{trimmedLine.substring(1).trim()}</span>
+                                </div>
+                              );
+                            }
+                            
+                            // Handle numbered lists
+                            if (/^\d+\./.test(trimmedLine)) {
+                              return <p key={i} className="ml-4">{trimmedLine}</p>;
+                            }
+                            
+                            // Regular paragraph
+                            return <p key={i} className="text-justify">{trimmedLine}</p>;
+                          })
+                        ) : (
+                          <span className="text-gray-400 italic">No content</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Footer */}
+                  <div className="mt-12 pt-6 border-t border-gray-200 text-center">
+                    <p className="text-sm text-gray-500">
+                      Generated by NovaIntel AI | {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}<br />
+                      This is an AI-generated proposal based on your RFP analysis
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -604,7 +699,7 @@ export default function ProposalBuilder() {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Template Info */}
-            <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
+            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
               <h3 className="mb-4 font-heading text-lg font-semibold">Template</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -627,7 +722,7 @@ export default function ProposalBuilder() {
             </Card>
 
             {/* Export Options */}
-            <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
+            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
               <h3 className="mb-4 font-heading text-lg font-semibold">Export</h3>
               <div className="space-y-3">
                 <Button
@@ -671,7 +766,7 @@ export default function ProposalBuilder() {
 
             {/* Quick Actions */}
             {insights && (
-              <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
+              <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
                 <h3 className="mb-4 font-heading text-lg font-semibold">AI Insights</h3>
                 <div className="space-y-2 text-sm text-muted-foreground">
                   <p>✓ RFP Analysis Complete</p>

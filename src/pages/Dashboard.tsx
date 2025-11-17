@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Briefcase, Clock, Heart, TrendingUp, MoreVertical, Edit, Trash2, Eye, Loader2 } from "lucide-react";
+import { Briefcase, Clock, Heart, TrendingUp, MoreVertical, Edit, Trash2, Eye, Loader2, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, Project } from "@/lib/api";
@@ -64,11 +64,18 @@ export default function Dashboard() {
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const itemsPerPage = 5;
 
-  const { data: projects = [], isLoading } = useQuery({
+  const { data: projectsData = [], isLoading } = useQuery({
     queryKey: ["projects"],
     queryFn: () => apiClient.listProjects(),
     enabled: isAuthenticated,
     retry: false,
+  });
+
+  // Sort projects by updated_at in descending order (newest first)
+  const projects = [...projectsData].sort((a, b) => {
+    const dateA = new Date(a.updated_at || a.created_at);
+    const dateB = new Date(b.updated_at || b.created_at);
+    return dateB.getTime() - dateA.getTime();
   });
 
   // Pagination logic
@@ -180,19 +187,19 @@ export default function Dashboard() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Draft":
-        return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+        return "bg-gray-100 text-gray-700";
       case "Active":
-        return "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300";
+        return "bg-blue-100 text-blue-700";
       case "Submitted":
-        return "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300";
+        return "bg-amber-100 text-amber-700";
       case "Won":
-        return "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300";
+        return "bg-green-100 text-green-700";
       case "Lost":
-        return "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300";
+        return "bg-red-100 text-red-700";
       case "Archived":
-        return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
+        return "bg-slate-100 text-slate-700";
       default:
-        return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+        return "bg-gray-100 text-gray-700";
     }
   };
 
@@ -217,11 +224,14 @@ export default function Dashboard() {
     <DashboardLayout>
       <div className="space-y-8">
         {/* Header */}
-        <div>
-          <h1 className="mb-2 font-heading text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Welcome back! Here's an overview of your presales activities.
-          </p>
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background p-8 border border-border/40">
+          <div className="relative z-10">
+            <h1 className="mb-2 font-heading text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">Dashboard</h1>
+            <p className="text-muted-foreground text-lg">
+              Welcome back! Here's an overview of your presales activities.
+            </p>
+          </div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
         </div>
 
         {/* Stats Grid */}
@@ -229,15 +239,18 @@ export default function Dashboard() {
           {stats.map((stat, index) => (
             <Card
               key={index}
-              className="group relative overflow-hidden border-border/40 bg-gradient-card p-6 backdrop-blur-sm transition-all hover:-translate-y-1 hover:shadow-glass"
+              className="group relative overflow-hidden border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm transition-all hover:-translate-y-2 hover:shadow-2xl hover:border-primary/30"
             >
-              <div className="flex items-start justify-between">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="relative flex items-start justify-between">
                 <div>
-                  <p className="mb-1 text-sm font-medium text-muted-foreground">{stat.title}</p>
-                  <p className="mb-2 font-heading text-3xl font-bold">{stat.value}</p>
-                  <p className="text-sm font-medium text-green-600">{stat.trend} from last month</p>
+                  <p className="mb-1 text-sm font-semibold text-muted-foreground uppercase tracking-wider">{stat.title}</p>
+                  <p className="mb-2 font-heading text-3xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">{stat.value}</p>
+                  <p className="text-sm font-medium text-green-600 flex items-center gap-1">
+                    {stat.trend} from last month
+                  </p>
                 </div>
-                <div className="rounded-xl bg-primary/10 p-3 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                <div className="rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 p-3 text-primary transition-all group-hover:scale-110 group-hover:from-primary group-hover:to-primary/80 group-hover:text-primary-foreground group-hover:shadow-lg">
                   <stat.icon className="h-6 w-6" />
                 </div>
               </div>
@@ -246,14 +259,14 @@ export default function Dashboard() {
         </div>
 
         {/* Projects Table */}
-        <Card className="border-border/40 bg-gradient-card backdrop-blur-sm">
-          <div className="border-b border-border/40 p-6">
+        <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 backdrop-blur-sm shadow-xl">
+          <div className="border-b border-border/40 p-6 bg-gradient-to-r from-muted/30 to-transparent">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="font-heading text-2xl font-semibold">Recent Projects</h2>
+                <h2 className="font-heading text-2xl font-semibold mb-1">Recent Projects</h2>
                 <p className="text-sm text-muted-foreground">Track and manage your ongoing proposals</p>
               </div>
-              <Button className="bg-gradient-primary" onClick={() => navigate("/new-project")}>
+              <Button className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg" onClick={() => navigate("/new-project")}>
                 New Project
               </Button>
             </div>
@@ -363,20 +376,25 @@ export default function Dashboard() {
         </Card>
 
         {/* AI Trends Widget */}
-        <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
-          <h2 className="mb-4 font-heading text-2xl font-semibold">AI Trends & Insights</h2>
+        <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-primary to-primary/60">
+              <Sparkles className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <h2 className="font-heading text-2xl font-semibold">AI Trends & Insights</h2>
+          </div>
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-lg bg-primary/5 p-4">
-              <p className="mb-1 text-sm font-medium text-muted-foreground">Most Common Challenge</p>
-              <p className="font-semibold">Digital Transformation</p>
+            <div className="rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 p-5 border border-primary/20 hover:border-primary/40 transition-all">
+              <p className="mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Most Common Challenge</p>
+              <p className="font-semibold text-lg">Digital Transformation</p>
             </div>
-            <div className="rounded-lg bg-accent/5 p-4">
-              <p className="mb-1 text-sm font-medium text-muted-foreground">Winning Strategy</p>
-              <p className="font-semibold">ROI-Focused Proposals</p>
+            <div className="rounded-xl bg-gradient-to-br from-accent/10 to-accent/5 p-5 border border-accent/20 hover:border-accent/40 transition-all">
+              <p className="mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Winning Strategy</p>
+              <p className="font-semibold text-lg">ROI-Focused Proposals</p>
             </div>
-            <div className="rounded-lg bg-primary/5 p-4">
-              <p className="mb-1 text-sm font-medium text-muted-foreground">Top Value Prop</p>
-              <p className="font-semibold">Cost Reduction</p>
+            <div className="rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 p-5 border border-primary/20 hover:border-primary/40 transition-all">
+              <p className="mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Top Value Prop</p>
+              <p className="font-semibold text-lg">Cost Reduction</p>
             </div>
           </div>
         </Card>

@@ -16,7 +16,7 @@ export function MarkdownText({ content, className = '' }: MarkdownTextProps) {
   const paragraphs = content.split(/\n\n+/);
   
   return (
-    <div className={`prose prose-sm dark:prose-invert max-w-none ${className}`}>
+    <div className={`prose prose-sm max-w-none ${className}`}>
       {paragraphs.map((paragraph, pIndex) => {
         if (!paragraph.trim()) return null;
         

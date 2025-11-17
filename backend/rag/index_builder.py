@@ -41,13 +41,13 @@ class IndexBuilder:
         if not vector_store_manager.is_available():
             return {
                 'success': False,
-                'error': 'Vector store not available'
+                'error': 'Vector store not available. Please ensure Chroma dependencies are installed and the backend has been restarted.'
             }
         
         if not embedding_service.is_available():
             return {
                 'success': False,
-                'error': 'Embedding service not available'
+                'error': 'Embedding service not available. Please ensure HuggingFace dependencies are installed and the backend has been restarted.'
             }
         
         # Process file

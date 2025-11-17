@@ -60,15 +60,28 @@ async def lifespan(app: FastAPI):
     # Service check logs
     try:
         from utils.gemini_service import gemini_service
-        print(f"✓ Gemini ready: {settings.GEMINI_MODEL}") if gemini_service else None
-    except:
-        print("⚠ Gemini service failed")
+        if gemini_service.is_available():
+            print(f"✓ Gemini ready: {settings.GEMINI_MODEL}")
+        else:
+            print("⚠ Gemini service not available - check GEMINI_API_KEY in .env")
+    except Exception as e:
+        print(f"⚠ Gemini service failed: {e}")
 
     try:
         from rag.vector_store import vector_store_manager
-        print(f"✓ Vector store ready: {settings.VECTOR_DB_TYPE}") if vector_store_manager else None
-    except:
-        print("⚠ Vector store failed")
+        from rag.embedding_service import embedding_service
+        
+        if vector_store_manager.is_available():
+            print(f"✓ Vector store ready: {settings.VECTOR_DB_TYPE}")
+        else:
+            print("✗ Vector store NOT available - check logs above for details")
+            
+        if embedding_service.is_available():
+            print("✓ Embedding service ready")
+        else:
+            print("✗ Embedding service NOT available - check logs above for details")
+    except Exception as e:
+        print(f"⚠ RAG services failed: {e}")
 
     yield
 

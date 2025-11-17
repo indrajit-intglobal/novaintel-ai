@@ -78,7 +78,7 @@ export function PasswordStrengthIndicator({ password }: PasswordStrengthIndicato
             <div
               key={index}
               className={`flex items-center gap-2 text-xs transition-colors ${
-                isMet ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+                isMet ? "text-green-600" : "text-muted-foreground"
               }`}
             >
               {isMet ? (

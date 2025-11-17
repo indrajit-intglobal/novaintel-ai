@@ -65,14 +65,6 @@ export default function NewProject() {
     { value: "new", label: "New Business / Greenfield" },
     { value: "expansion", label: "Expansion / Upsell" },
     { value: "renewal", label: "Renewal / Contract Extension" },
-    { value: "migration", label: "Migration / Modernization" },
-    { value: "integration", label: "Integration / API Development" },
-    { value: "consulting", label: "Consulting / Advisory" },
-    { value: "support", label: "Support & Maintenance" },
-    { value: "custom", label: "Custom Development" },
-    { value: "saas", label: "SaaS Implementation" },
-    { value: "cloud", label: "Cloud Migration" },
-    { value: "digital", label: "Digital Transformation" },
   ];
   const [selectedTasks, setSelectedTasks] = useState({
     challenges: true,
@@ -143,11 +135,22 @@ export default function NewProject() {
           // User will see loader on insights page while these run
           (async () => {
             try {
-              await apiClient.buildIndex(uploadResult.rfp_document_id);
+              console.log("Building index...");
+              const indexResult = await apiClient.buildIndex(uploadResult.rfp_document_id);
+              console.log("Index build result:", indexResult);
+              
+              // Check if index building was successful
+              if (!indexResult.success) {
+                const errorMsg = indexResult.message || "Index building failed. Please check the RFP document format.";
+                console.error(`Index building failed: ${errorMsg}`);
+                toast.error(`Index building failed: ${errorMsg}`);
+                return; // Stop here, don't run workflow
+              }
+              
               console.log("Index built successfully!");
               
               // Run workflow if tasks are selected
-              if (selectedTasks.challenges || selectedTasks.questions || selectedTasks.cases || selectedTasks.proposal) {
+              if (selectedTasks.challenges || selectedTasks.questions || selectedTasks.cases) {
                 try {
                   console.log(`Starting workflow for project ${project.id}, RFP document ${uploadResult.rfp_document_id}`);
                   const workflowResult = await apiClient.runWorkflow(project.id, uploadResult.rfp_document_id, selectedTasks);
@@ -155,16 +158,21 @@ export default function NewProject() {
                   
                   if (!workflowResult.success) {
                     console.error(`Workflow failed: ${workflowResult.error || 'Unknown error'}`);
+                    toast.error(`Analysis failed: ${workflowResult.error || 'Unknown error'}`);
+                  } else {
+                    toast.success("Analysis started! Results will appear shortly.");
                   }
                 } catch (error: any) {
                   const errorMessage = error.message || error.detail || 'Unknown error';
                   console.error(`Failed to start analysis: ${errorMessage}`);
+                  toast.error(`Failed to start analysis: ${errorMessage}`);
                 }
               } else {
                 console.log("No tasks selected, skipping workflow");
               }
             } catch (error: any) {
               console.error(`Failed to build index: ${error.message}`);
+              toast.error(`Failed to build index: ${error.message}`);
             }
           })();
         } catch (error: any) {
@@ -198,14 +206,24 @@ export default function NewProject() {
       if (selectedTasks.challenges) tasksParam.set('challenges', 'true');
       if (selectedTasks.questions) tasksParam.set('questions', 'true');
       if (selectedTasks.cases) tasksParam.set('cases', 'true');
-      if (selectedTasks.proposal) tasksParam.set('proposal', 'true');
       navigate(`/insights?${tasksParam.toString()}`);
       
       // Build index and run workflow in the background (don't await)
       // User will see loader on insights page while these run
       (async () => {
         try {
-          await apiClient.buildIndex(uploadResult.rfp_document_id);
+          console.log("Building index...");
+          const indexResult = await apiClient.buildIndex(uploadResult.rfp_document_id);
+          console.log("Index build result:", indexResult);
+          
+          // Check if index building was successful
+          if (!indexResult.success) {
+            const errorMsg = indexResult.message || "Index building failed. Please check the RFP document format.";
+            console.error(`Index building failed: ${errorMsg}`);
+            toast.error(`Index building failed: ${errorMsg}`);
+            return; // Stop here, don't run workflow
+          }
+          
           console.log("Index built successfully!");
           
           // Run workflow if tasks are selected
@@ -217,16 +235,21 @@ export default function NewProject() {
               
               if (!workflowResult.success) {
                 console.error(`Workflow failed: ${workflowResult.error || 'Unknown error'}`);
+                toast.error(`Analysis failed: ${workflowResult.error || 'Unknown error'}`);
+              } else {
+                toast.success("Analysis started! Results will appear shortly.");
               }
             } catch (error: any) {
               const errorMessage = error.message || error.detail || 'Unknown error';
               console.error(`Failed to start analysis: ${errorMessage}`);
+              toast.error(`Failed to start analysis: ${errorMessage}`);
             }
           } else {
             console.log("No tasks selected, skipping workflow");
           }
         } catch (error: any) {
           console.error(`Failed to build index: ${error.message}`);
+          toast.error(`Failed to build index: ${error.message}`);
         }
       })();
     } catch (error: any) {
@@ -237,18 +260,24 @@ export default function NewProject() {
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        <div>
-          <h1 className="mb-2 font-heading text-3xl font-bold">Create New Project</h1>
-          <p className="text-muted-foreground">
-            Upload your RFP and let AI extract insights to jumpstart your presales process
-          </p>
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background p-8 border border-border/40">
+          <div className="relative z-10">
+            <h1 className="mb-2 font-heading text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">Create New Project</h1>
+            <p className="text-muted-foreground text-lg">
+              Upload your RFP and let AI extract insights to jumpstart your presales process
+            </p>
+          </div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             {/* Client Information */}
-            <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
-              <h2 className="mb-6 font-heading text-xl font-semibold">Client Information</h2>
+            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
+              <h2 className="mb-6 font-heading text-xl font-semibold flex items-center gap-2">
+                <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-primary-foreground text-sm font-bold">1</span>
+                Client Information
+              </h2>
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="clientName">Client Name</Label>
@@ -309,8 +338,11 @@ export default function NewProject() {
             </Card>
 
             {/* Upload RFP */}
-            <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
-              <h2 className="mb-6 font-heading text-xl font-semibold">Upload RFP Document <span className="text-destructive">*</span></h2>
+            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
+              <h2 className="mb-6 font-heading text-xl font-semibold flex items-center gap-2">
+                <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-primary-foreground text-sm font-bold">2</span>
+                Upload RFP Document <span className="text-destructive">*</span>
+              </h2>
               <p className="text-sm text-muted-foreground mb-4">RFP document upload is required before analysis can proceed.</p>
               <div
                 className="flex items-center justify-center rounded-xl border-2 border-dashed border-border bg-background/30 p-12 transition-colors hover:border-primary/50 cursor-pointer"
@@ -352,8 +384,11 @@ export default function NewProject() {
             </Card>
 
             {/* AI Tasks */}
-            <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
-              <h2 className="mb-6 font-heading text-xl font-semibold">Select AI Analysis Tasks</h2>
+            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
+              <h2 className="mb-6 font-heading text-xl font-semibold flex items-center gap-2">
+                <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-primary-foreground text-sm font-bold">3</span>
+                Select AI Analysis Tasks
+              </h2>
               <div className="space-y-4">
                 {[
                   { id: "challenges", label: "Extract Business Challenges", description: "Identify key pain points and requirements" },
@@ -380,17 +415,17 @@ export default function NewProject() {
 
           {/* Actions Sidebar */}
           <div className="space-y-6">
-            <Card className="border-border/40 bg-gradient-primary p-6 text-primary-foreground shadow-glass">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
+            <Card className="border-border/40 bg-gradient-to-br from-primary via-primary/95 to-primary/80 p-6 text-primary-foreground shadow-2xl">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm shadow-lg">
                 <Sparkles className="h-6 w-6" />
               </div>
               <h3 className="mb-2 font-heading text-xl font-semibold">AI-Powered Analysis</h3>
-              <p className="mb-6 text-sm opacity-90">
+              <p className="mb-6 text-sm opacity-95">
                 Our AI will analyze your RFP and extract key insights, generate discovery questions, and recommend relevant case studies.
               </p>
               <div className="space-y-3">
                 <Button 
-                  className="w-full bg-white text-primary hover:bg-white/90 shadow-sm" 
+                  className="w-full bg-white text-primary hover:bg-white/90 shadow-lg hover:shadow-xl transition-all" 
                   size="lg"
                   onClick={handleAnalyze}
                   disabled={createProjectMutation.isPending || !clientName || !industry || !region || !projectType || !selectedFile || (!selectedTasks.challenges && !selectedTasks.questions && !selectedTasks.cases)}
@@ -398,7 +433,7 @@ export default function NewProject() {
                   {createProjectMutation.isPending ? "Creating..." : "Analyze RFP"}
                 </Button>
                 <Button 
-                  className="w-full border-2 border-white/30 bg-white/10 text-white backdrop-blur-sm hover:bg-white/20 hover:border-white/50" 
+                  className="w-full border-2 border-white/30 bg-white/10 text-white backdrop-blur-sm hover:bg-white/20 hover:border-white/50 transition-all" 
                   size="lg"
                   onClick={() => {
                     if (!projectId) {
@@ -415,8 +450,11 @@ export default function NewProject() {
               </div>
             </Card>
 
-            <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
-              <h3 className="mb-4 font-semibold">Quick Tips</h3>
+            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
+              <h3 className="mb-4 font-semibold flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs">💡</span>
+                Quick Tips
+              </h3>
               <ul className="space-y-3 text-sm text-muted-foreground">
                 <li className="flex gap-2">
                   <span className="text-primary">•</span>

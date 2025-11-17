@@ -15,7 +15,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="flex flex-1 flex-col">
           <Header />
           <main className="flex-1 bg-gradient-hero p-6">
-            <div className="mx-auto max-w-[1388px]">{children}</div>
+            <div className="mx-auto w-full">{children}</div>
           </main>
           <footer className="border-t border-border/40 py-4 text-center text-sm text-muted-foreground">
             © 2025 NovaIntel. All rights reserved.

@@ -47,19 +47,10 @@ export default function Insights() {
 
   const { data: insights, isLoading, error, refetch } = useQuery({
     queryKey: ["insights", projectId],
-    queryFn: async () => {
-      try {
-        return await apiClient.getInsights(projectId);
-      } catch (err: any) {
-        // If 404, insights are not ready yet - this is expected
-        if (err?.response?.status === 404 || err?.status === 404) {
-          return null; // Return null instead of throwing
-        }
-        throw err; // Re-throw other errors
-      }
-    },
+    queryFn: () => apiClient.getInsights(projectId),
     enabled: !!projectId,
     retry: false,
+    throwOnError: false, // Don't throw errors since 404 is expected
     refetchInterval: (query) => {
       // Poll every 3 seconds if insights don't exist yet
       const data = query.state.data;
@@ -245,7 +236,7 @@ export default function Insights() {
                 </div>
                 {isStuck && (
                   <div className="mt-4 w-full rounded-lg bg-yellow-500/10 border border-yellow-500/20 p-4 text-center space-y-3">
-                    <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                    <p className="text-sm text-yellow-600">
                       Analysis is taking longer than expected. The workflow might not have started or encountered an error.
                     </p>
                     <div className="flex gap-2 justify-center">

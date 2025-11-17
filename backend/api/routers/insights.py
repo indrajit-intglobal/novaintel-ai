@@ -26,28 +26,39 @@ async def get_insights(
     Returns 404 if insights haven't been generated yet.
     Run /agents/run-all first to generate insights.
     """
-    # Verify project ownership
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.owner_id == current_user.id
-    ).first()
-    
-    if not project:
+    try:
+        # Verify project ownership
+        project = db.query(Project).filter(
+            Project.id == project_id,
+            Project.owner_id == current_user.id
+        ).first()
+        
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+        
+        # Get insights
+        insights = db.query(Insights).filter(Insights.project_id == project_id).first()
+        
+        if not insights:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Insights not found for this project. Please run the agents workflow first using /agents/run-all"
+            )
+        
+        return insights
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"Error fetching insights: {e}")
+        traceback.print_exc()
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching insights: {str(e)}"
         )
-    
-    # Get insights
-    insights = db.query(Insights).filter(Insights.project_id == project_id).first()
-    
-    if not insights:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Insights not found for this project. Please run the agents workflow first using /agents/run-all"
-        )
-    
-    return insights
 
 @router.get("/status", response_model=InsightsStatusResponse)
 async def check_insights_status(

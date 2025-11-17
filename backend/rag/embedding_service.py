@@ -21,9 +21,16 @@ class EmbeddingService:
                 model_name="sentence-transformers/all-MiniLM-L6-v2"
             )
             print("✓ Embedding service initialized: HuggingFace (all-MiniLM-L6-v2)")
+        except ImportError as e:
+            print(f"✗ Missing HuggingFace dependencies: {e}")
+            print("   Run: pip install llama-index-embeddings-huggingface sentence-transformers")
+            self.embedding_model = None
         except Exception as e:
             print(f"✗ Error initializing HuggingFace embeddings: {e}")
+            import traceback
+            traceback.print_exc()
             print("⚠ No embedding service available")
+            self.embedding_model = None
     
     def get_embedding_model(self):
         """Get the embedding model instance."""

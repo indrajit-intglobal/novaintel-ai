@@ -7,6 +7,14 @@ export interface ApiError {
   detail: string;
 }
 
+// Custom error class that includes HTTP status code
+export class HttpError extends Error {
+  constructor(message: string, public statusCode: number) {
+    super(message);
+    this.name = 'HttpError';
+  }
+}
+
 // Types for API requests/responses
 export interface LoginRequest {
   email: string;
@@ -184,7 +192,7 @@ class ApiClient {
       const error: ApiError = await response.json().catch(() => ({
         detail: `HTTP ${response.status}: ${response.statusText}`,
       }));
-      throw new Error(error.detail || "An error occurred");
+      throw new HttpError(error.detail || "An error occurred", response.status);
     }
 
     // Handle empty responses
@@ -251,7 +259,6 @@ class ApiClient {
     ai_response_style?: string;
     secure_mode?: boolean;
     auto_save_insights?: boolean;
-    theme_preference?: string;
   }): Promise<any> {
     return this.request<any>("/auth/me/settings", {
       method: "PUT",
@@ -319,8 +326,17 @@ class ApiClient {
   }
 
   // Insights endpoints
-  async getInsights(projectId: number): Promise<Insights> {
-    return this.request<Insights>(`/insights/get?project_id=${projectId}`);
+  async getInsights(projectId: number): Promise<Insights | null> {
+    try {
+      return await this.request<Insights>(`/insights/get?project_id=${projectId}`);
+    } catch (error: any) {
+      // If insights don't exist yet (404), return null instead of throwing
+      // This is expected when insights are still being generated
+      if (error instanceof HttpError && error.statusCode === 404) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   // RAG endpoints

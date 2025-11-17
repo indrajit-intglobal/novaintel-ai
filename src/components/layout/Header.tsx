@@ -38,14 +38,14 @@ export function Header() {
       <div className="flex h-16 items-center gap-4 px-6">
         <SidebarTrigger className="lg:hidden" />
         
-        <div className="flex items-center gap-2">
+        {/* <div className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-primary">
             <span className="text-lg font-bold text-primary-foreground">N</span>
           </div>
           <span className="hidden font-heading text-xl font-bold lg:inline-block">
             Nova<span className="text-primary">Intel</span>
           </span>
-        </div>
+        </div> */}
 
         <div className="flex flex-1 items-center gap-4">
           <div className="ml-auto w-full max-w-md">

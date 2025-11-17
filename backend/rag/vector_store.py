@@ -37,8 +37,15 @@ class VectorStoreManager:
                 print(f"✓ Chroma vector store initialized: {settings.CHROMA_PERSIST_DIR}")
             else:
                 print(f"⚠ Vector DB type '{settings.VECTOR_DB_TYPE}' not implemented")
+                print("   Please set VECTOR_DB_TYPE=chroma in your .env file")
+        except ImportError as e:
+            print(f"✗ Missing Chroma dependencies: {e}")
+            print("   Run: pip install chromadb llama-index-vector-stores-chroma")
+            self.vector_store = None
         except Exception as e:
             print(f"✗ Error initializing vector store: {e}")
+            import traceback
+            traceback.print_exc()
             self.vector_store = None
     
     def get_vector_store(self):

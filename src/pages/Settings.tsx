@@ -28,7 +28,6 @@ export default function Settings() {
     ai_response_style: "balanced",
     secure_mode: false,
     auto_save_insights: true,
-    theme_preference: "light",
   });
 
   // Load user profile
@@ -63,31 +62,9 @@ export default function Settings() {
         ai_response_style: userSettings.ai_response_style || "balanced",
         secure_mode: userSettings.secure_mode || false,
         auto_save_insights: userSettings.auto_save_insights !== false,
-        theme_preference: userSettings.theme_preference || "light",
       });
-      // Apply theme immediately
-      if (userSettings.theme_preference) {
-        applyTheme(userSettings.theme_preference);
-      }
     }
   }, [userSettings]);
-  
-  const applyTheme = (theme: string) => {
-    const root = document.documentElement;
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
-    // Store in localStorage for persistence
-    localStorage.setItem("theme", theme);
-  };
-  
-  useEffect(() => {
-    // Apply theme on mount
-    const savedTheme = localStorage.getItem("theme") || settingsData.theme_preference;
-    applyTheme(savedTheme);
-  }, []);
 
   // Update profile mutation
   const updateProfileMutation = useMutation({
@@ -134,10 +111,8 @@ export default function Settings() {
       ai_response_style: "balanced",
       secure_mode: false,
       auto_save_insights: true,
-      theme_preference: "light",
     };
     setSettingsData(defaultSettings);
-    applyTheme("light");
     updateSettingsMutation.mutate(defaultSettings);
     toast.success("Settings reset to defaults");
   };
@@ -156,15 +131,18 @@ export default function Settings() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="mb-2 font-heading text-3xl font-bold">Settings</h1>
-          <p className="text-muted-foreground">Manage your account preferences and AI configurations</p>
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background p-8 border border-border/40">
+          <div className="relative z-10">
+            <h1 className="mb-2 font-heading text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">Settings</h1>
+            <p className="text-muted-foreground text-lg">Manage your account preferences and AI configurations</p>
+          </div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             {/* Profile Settings */}
-            <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
+            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
               <h2 className="mb-6 font-heading text-xl font-semibold">Profile Settings</h2>
               <div className="space-y-6">
                 <div className="grid gap-6 md:grid-cols-2">
@@ -203,7 +181,7 @@ export default function Settings() {
             </Card>
 
             {/* Preferences */}
-            <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
+            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
               <h2 className="mb-6 font-heading text-xl font-semibold">Preferences</h2>
               <div className="space-y-6">
                 <div className="space-y-2">
@@ -231,7 +209,7 @@ export default function Settings() {
             </Card>
 
             {/* AI Settings */}
-            <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
+            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
               <h2 className="mb-6 font-heading text-xl font-semibold">AI Settings</h2>
               <div className="space-y-6">
                 <div className="space-y-2">
@@ -275,40 +253,17 @@ export default function Settings() {
                     onCheckedChange={(checked) => setSettingsData({ ...settingsData, auto_save_insights: checked })}
                   />
                 </div>
-                <Separator />
-                <div className="space-y-2">
-                  <Label>Theme</Label>
-                  <Select
-                    value={settingsData.theme_preference}
-                    onValueChange={(value) => {
-                      setSettingsData({ ...settingsData, theme_preference: value });
-                      applyTheme(value);
-                    }}
-                  >
-                    <SelectTrigger className="bg-background/50">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="light">Light</SelectItem>
-                      <SelectItem value="dark">Dark</SelectItem>
-                      <SelectItem value="system">System</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Choose your preferred color theme
-                  </p>
-                </div>
               </div>
             </Card>
 
           </div>
 
           <div className="space-y-6">
-            <Card className="border-border/40 bg-gradient-card p-6 backdrop-blur-sm">
+            <Card className="border-border/40 bg-gradient-to-br from-background to-muted/20 p-6 backdrop-blur-sm shadow-xl">
               <h3 className="mb-4 font-heading text-lg font-semibold">Actions</h3>
               <div className="space-y-3">
                 <Button
-                  className="w-full bg-gradient-primary"
+                  className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg"
                   onClick={handleSaveChanges}
                   disabled={updateProfileMutation.isPending || updateSettingsMutation.isPending}
                 >
